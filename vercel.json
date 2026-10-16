@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "fluid": true,
+  "functions": { "api/chat-ws.ts": { "maxDuration": 300 } },
   "rewrites": [
+    { "source": "/api/v1/chatting/ws", "destination": "/api/chat-ws" },
     { "source": "/api/:path*", "destination": "https://140.238.19.165/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]

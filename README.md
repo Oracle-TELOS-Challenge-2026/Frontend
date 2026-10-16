@@ -63,6 +63,7 @@ src/
   types.ts                화면 데이터 타입
   styles/                 화면 스타일
 scripts/*.test.mjs         API 계약과 입력 경계·오류 처리 테스트
+api/chat-ws.ts             Vercel에서 Oracle 채팅 WebSocket을 중계하는 함수
 public/                   브랜드 이미지, PWA, 알림 서비스 워커
 ```
 
@@ -201,7 +202,11 @@ GitHub에 이 저장소를 푸시한 뒤 Vercel의 Add New → Project에서 가
 `pnpm-lock.yaml`을 커밋해 Vercel이 pnpm을 자동 감지하도록 합니다.
 카카오맵 표시는 위의 `VITE_KAKAO_MAP_APP_KEY` 환경변수와 도메인 등록이 필요합니다.
 푸시 수신은 위의 Firebase 환경변수 5개와 사용자의 브라우저 알림 허용이 필요합니다.
-`vercel.json`은 `/api/:path*`를 `https://140.238.19.165/api/:path*`로 먼저 전달하고, 나머지 하위 경로 직접 접속과 새로고침을 React Router로 연결합니다. API rewrite는 SPA catch-all보다 앞에 있어야 합니다.
+`vercel.json`은 `/api/v1/chatting/ws`를 `api/chat-ws.ts` 함수로 먼저 연결하고, 나머지 `/api/:path*`는 `https://140.238.19.165/api/:path*`로 전달합니다. 마지막 SPA catch-all은 하위 경로 직접 접속과 새로고침을 React Router로 연결합니다. 이 순서를 유지해야 합니다.
+
+웹소켓 중계는 고정 Oracle 주소로만 연결하며, 운영 Origin과 `bintime.chat.v1`을 검사하고 `bt_session` 쿠키만 전달합니다. 기존 서버가 세션·CSRF·방 권한을 검증하며, 인증 프레임과 텍스트·바이너리·Ping/Pong·종료 코드를 양방향으로 전달합니다. 브라우저에는 쿠키 값을 노출하지 않습니다. 로컬 Vite는 기존 `ws: true` 프록시를 사용합니다.
+
+Vercel Functions의 WebSocket 베타와 **Fluid compute**가 필요합니다. 함수 최대 실행 시간은 300초이며 종료 시 기존 채팅 재연결·sequence 복구를 사용합니다. 연결 유지 중 Function 사용량이 발생합니다. 서버·카카오 설정 변경은 필요 없지만, 배포 후 실제 로그인 세션으로 `101 → connection.ready → room.subscribed`를 확인해야 합니다. [Vercel WebSocket 공식 문서](https://vercel.com/docs/functions/websockets)
 로그인 전환 배포는 [서버·카카오 설정 전달 문서](docs/same-origin-login-handoff.md)에 따라 서버 담당자와 같은 작업 시간에 진행합니다. 프론트만 먼저 배포하거나 서버 콜백만 먼저 바꾸면 로그인 시작과 콜백의 세션이 분리될 수 있습니다.
 API 연결 시 필요한 공개 설정은 Vercel 프로젝트의 Environment Variables에 등록합니다.
 `VITE_` 변수는 브라우저에 공개되므로 비밀 인증키나 DB 비밀번호를 넣지 않습니다. 카카오맵에는 브라우저 공개용 JavaScript 키만 사용합니다.

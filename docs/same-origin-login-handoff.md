@@ -19,6 +19,8 @@
 
 API rewrite를 `/index.html`로 보내는 SPA catch-all보다 앞에 둔다. `/api` 경로를 제거하지 않는다. REST·CSRF·SSE·WebSocket도 같은 프론트 호스트를 사용한다. [Vercel 외부 rewrite](https://vercel.com/docs/routing/rewrites#rewrites-to-external-origins)
 
+웹소켓은 `/api/v1/chatting/ws` 전용 규칙을 API rewrite보다 앞에 두고 `api/chat-ws.ts` Vercel Function으로 연결한다. 운영 Nginx 점검에서 기존 외부 rewrite 경유 요청은 `Upgrade: websocket`이 누락되고 `400`을 반환했다. 중계 함수가 원래 Origin·세션 쿠키·채팅 프로토콜을 유지해 Oracle에 새 WebSocket 연결을 연다. 서버 소스·로그인 환경변수·카카오 설정은 바꾸지 않는다. Fluid compute와 Vercel WebSocket 지원이 필요하며 실제 연결 성공은 배포 후 별도로 검증한다.
+
 로그인 시작에서 저장한 OAuth 요청과 `state`를 콜백에서 같은 세션으로 찾아야 한다. 시작은 Vercel인데 콜백은 IP인 조합은 사용하지 않는다. IP에 있던 세션 쿠키는 Vercel 호스트로 옮겨지지 않으므로 전환 후에는 새로 로그인한다.
 
 ## 서버 설정
