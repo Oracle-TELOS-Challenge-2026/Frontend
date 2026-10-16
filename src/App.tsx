@@ -19,10 +19,13 @@ import { OwnerHome } from './pages/owner/HomePage'
 import { OwnerAlerts } from './pages/owner/AlertsPage'
 import { OwnerChats } from './pages/owner/ChatsPage'
 import { ChatPage } from './pages/ChatPage'
+import { ChatNotificationPage } from './pages/ChatNotificationPage'
 import { Registration } from './pages/owner/RegistrationPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { PreferencesPage } from './pages/PreferencesPage'
 import { accountStartPath } from './lib/account'
+import { notificationPath } from './lib/notifications'
+import { notificationClickPath, notificationTarget } from './lib/notification-navigation'
 import type { AccountState, Role } from './types'
 import './styles/customer.css'
 import './styles/owner.css'
@@ -47,13 +50,25 @@ function App() {
   const location = useLocation()
   const startPath = accountStartPath(account)
   const loginPage = location.pathname === '/' || location.pathname.replace(/\/+$/, '') === '/login'
-  const ownerChat = { ...chat, conversations: chat.conversations.filter((room) => room.store.id === account.shop?.id) }
+  let loginDestination = startPath
+  if (loginPage && user) {
+    try {
+      const path = sessionStorage.getItem('bintime.notification.return')
+      if (path) loginDestination = notificationPath(path)
+    } catch { /* 저장 공간을 사용할 수 없으면 기본 화면으로 이동한다. */ }
+  }
+  const ownerChat = { ...chat, conversations: chat.conversations.filter((room) => user?.ownedStoreIds.includes(room.store.id)) }
   const hasUnread = (account.role === 'owner' ? ownerChat.conversations : chat.conversations.filter((room) => room.customer.id === user?.id)).some((room) => room.unreadCount > 0)
-  const notificationId = new URLSearchParams(location.search).get('notificationId')
+  const notification = notificationTarget(location.pathname + location.search + location.hash)
+  const notificationId = notification?.notificationId
+  const chatNotification = notification?.kind === 'chat'
   const { markRead } = notifications
   const notificationRevision = Date.parse(notifications.items[0]?.createdAt ?? '') || 0
   const openNotificationPath = useCallback((path: string) => {
-    if (path.startsWith('/customer/')) selectRole('customer')
+    if (notificationTarget(path)?.kind !== 'chat') {
+      if (path.startsWith('/customer/')) selectRole('customer')
+      if (/^\/owner(?:[/?#]|$)/.test(path)) selectRole('owner')
+    }
     navigate(path)
   }, [navigate, selectRole])
   const showError = Boolean(error && !loginPage && !['/choose-role', '/owner/register', '/customer/profile/preferences'].includes(location.pathname))
@@ -72,26 +87,27 @@ function App() {
   useEffect(() => {
     function openPushNotification(event: MessageEvent) {
       if (event.origin !== window.location.origin || event.data?.type !== 'bintime:notification-click' || typeof event.data.url !== 'string') return
-      try {
-        const url = new URL(event.data.url, window.location.origin)
-        if (url.origin === window.location.origin && url.protocol === window.location.protocol && !url.username && !url.password) {
-          if (typeof event.data.notificationId === 'string') url.searchParams.set('notificationId', event.data.notificationId)
-          openNotificationPath(url.pathname + url.search + url.hash)
-        }
-      } catch { /* 잘못된 알림 주소는 이동하지 않는다. */ }
+      const path = notificationClickPath(event.data.url, window.location.origin, event.data)
+      if (path) openNotificationPath(path)
     }
     navigator.serviceWorker?.addEventListener('message', openPushNotification)
     return () => navigator.serviceWorker?.removeEventListener('message', openPushNotification)
   }, [openNotificationPath])
 
   useEffect(() => {
-    if (!notificationId || !user || loading) return
+    if (loading) return
+    try {
+      if (!user && (!loginPage || notificationId || chatNotification)) sessionStorage.setItem('bintime.notification.return', location.pathname + location.search + location.hash)
+      else if (user && (!loginPage || notificationId || chatNotification)) sessionStorage.removeItem('bintime.notification.return')
+    } catch { /* 저장 공간을 사용할 수 없어도 로그인과 알림 확인은 계속한다. */ }
+    if (!user || chatNotification || !notificationId) return
     const params = new URLSearchParams(location.search)
     params.delete('notificationId')
     if (location.pathname.startsWith('/customer/')) selectRole('customer')
+    if (location.pathname === '/owner' || location.pathname.startsWith('/owner/')) selectRole('owner')
     navigate(location.pathname + (params.size ? `?${params}` : '') + location.hash, { replace: true })
     void markRead(notificationId).catch((cause: unknown) => notify(cause instanceof Error ? cause.message : '알림을 읽음으로 표시하지 못했어요.'))
-  }, [notificationId, user, loading, location.pathname, location.search, location.hash, navigate, selectRole, markRead, notify])
+  }, [notificationId, chatNotification, user, loading, loginPage, location.pathname, location.search, location.hash, navigate, selectRole, markRead, notify])
 
   function enterRole(role: Role) {
     startTransition(() => {
@@ -104,8 +120,9 @@ function App() {
 
   return <AppLayout toast={visibleToast} hasUnread={hasUnread} notificationCount={notifications.unreadCount} onSwitch={switchRole}>
     {loading || (user && notificationId) ? <div className="app-loading" role="status">계정 정보를 확인하고 있어요…</div>
-      : loginPage ? user ? <Navigate to={startPath} replace /> : <Login loading={loading} error={error} onRefresh={refresh} />
-      : !user ? <Navigate to="/login" replace />
+      : !user ? loginPage ? <Login loading={loading} error={error} onRefresh={refresh} /> : <Navigate to="/login" replace />
+      : notification?.kind === 'chat' ? <ChatNotificationPage key={user.id + location.key} roomId={notification.roomId} chat={chat} user={user} onSelectRole={selectRole} onRefreshSession={refresh} accountError={error} fallback={startPath} />
+      : loginPage ? <Navigate to={loginDestination} replace />
       : account.role === 'owner' && user.ownedStoreIds.length > 0 && !account.shop ? <div className="page"><p role="alert">{error || '등록된 가게를 불러오지 못했어요.'}</p><button className="button" onClick={() => void refresh()}>다시 조회</button><button className="button secondary" onClick={() => enterRole('customer')}>고객 화면으로</button><button className="account-text-button" onClick={() => void signOut()}>로그아웃</button></div>
       : <Routes>
         <Route path="/choose-role" element={account.role ? <Navigate to={startPath} replace /> : <RoleSelection onSelect={enterRole} error={error} />} />
@@ -124,7 +141,7 @@ function App() {
           <Route path="/customer/profile/preferences" element={<PreferencesPage value={account.preferences} onSave={savePreferences} error={error} />} />
         </Route>
         <Route element={<RoleGate role="owner" account={account} />}>
-          <Route path="/owner" element={<OwnerHome ownerShop={account.shop} />} />
+          <Route path="/owner" element={<OwnerHome key={location.key} ownerShop={account.shop} />} />
           <Route path="/owner/manage" element={<OwnerManage ownerShop={account.shop} onChanged={refreshShop} />} />
           <Route path="/owner/notifications" element={<NotificationsPage notifications={notifications} onOpen={openNotificationPath} />} />
           <Route path="/owner/alerts" element={<OwnerAlerts key={location.key} ownerShop={account.shop} notify={notify} />} />

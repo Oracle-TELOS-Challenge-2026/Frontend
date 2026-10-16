@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { fetchNotifications, markNotificationRead, mergeNotifications, notificationPath, parseNotification, parseNotificationEvent, readNotificationStream } from '../src/lib/notifications.ts'
+import { fetchNotifications, markNotificationRead, mergeNotifications, notificationActionLabel, notificationPath, parseNotification, parseNotificationEvent, readNotificationStream } from '../src/lib/notifications.ts'
 
 const notification = (overrides = {}) => ({
   id: 'noti-1', type: 'VACANCY_MATCHED', title: '빈자리 알림', body: '예약할 수 있어요.',
@@ -46,7 +46,27 @@ test('marking notifications read sends CSRF and read=true and rejects unconfirme
 test('notification destinations remain in the app and invalid response data is rejected', () => {
   assert.equal(notificationPath('/customer/shops/a?slotId=s#time'), '/customer/shops/a?slotId=s#time')
   for (const path of ['https://evil.example', '//evil.example', '/\\evil.example', 'javascript:alert(1)', '/bad\npath', null]) assert.equal(notificationPath(path), '/customer/waitlist')
-  for (const value of [null, notification({ id: '' }), notification({ createdAt: 'bad' }), notification({ readAt: 'bad' }), notification({ availability: 'OTHER' })]) assert.throws(() => parseNotification(value))
+  for (const value of [null, notification({ id: '' }), notification({ type: null }), notification({ createdAt: 'bad' }), notification({ readAt: 'bad' }), notification({ availability: 'OTHER' })]) assert.throws(() => parseNotification(value))
+})
+
+test('chat and reservation notifications keep their destinations and remain actionable without slot availability', () => {
+  for (const [type, path, label] of [
+    ['CHAT_MESSAGE', '/customer/chat/room-1', '채팅 확인하기'],
+    ['CHAT_MESSAGE', '/owner/chat/room-1', '채팅 확인하기'],
+    ['RESERVATION_CONFIRMED', '/owner?date=2026-10-18', '예약 확인하기'],
+    ['RESERVATION_CANCELED', '/customer/reservations/res-1', '예약 확인하기'],
+    ['RESERVATION_NO_SHOW', '/customer/reservations', '예약 확인하기'],
+  ]) {
+    const item = parseNotification(notification({ type, availability: 'NOT_APPLICABLE', action: { path } }))
+    assert.equal(item.type, type)
+    assert.equal(item.path, path)
+    assert.equal(item.availability, 'NOT_APPLICABLE')
+    assert.equal(notificationActionLabel(item), label)
+    assert.equal(notificationActionLabel({ ...item, availability: 'UNAVAILABLE' }), label)
+  }
+  assert.equal(notificationActionLabel(parseNotification(notification())), '빈자리 확인하기')
+  assert.equal(notificationActionLabel(parseNotification(notification({ availability: 'UNAVAILABLE' }))), null)
+  assert.equal(notificationActionLabel(parseNotification(notification({ type: 'NEW_TYPE', availability: 'NOT_APPLICABLE' }))), '내용 확인하기')
 })
 
 test('duplicate and replayed notifications preserve read state and chronological order', () => {

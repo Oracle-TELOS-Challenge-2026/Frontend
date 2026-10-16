@@ -18,6 +18,30 @@ export function pushMessageText(payload: MessagePayload) {
   return [title, body].filter(Boolean).join(' · ')
 }
 
+export async function showForegroundPush(registration: ServiceWorkerRegistration, payload: MessagePayload) {
+  if (!pushMessageText(payload)) return
+  if (registration.active?.state !== 'activated') throw new Error('알림 서비스가 활성화되지 않았어요.')
+  return new Promise<void>((resolve, reject) => {
+    const channel = new MessageChannel()
+    const timer = setTimeout(() => finish(new Error('시스템 알림 표시 시간이 초과됐어요. 앱을 다시 열어 주세요.')), 10000)
+    function finish(error?: Error) {
+      clearTimeout(timer)
+      channel.port1.close()
+      channel.port2.close()
+      if (error) reject(error)
+      else resolve()
+    }
+    channel.port1.onmessage = ({ data }) => finish(data?.ok === true ? undefined : new Error(typeof data?.error === 'string' ? data.error : '시스템 알림을 표시하지 못했어요.'))
+    try { registration.active!.postMessage({ type: 'bintime:show-notification', payload }, [channel.port2]) }
+    catch (cause) { finish(cause instanceof Error ? cause : new Error('알림 서비스에 연결하지 못했어요.')) }
+  })
+}
+
+export function needsIOSHomeScreen(device: { userAgent: string; maxTouchPoints: number; standalone?: boolean }, standaloneDisplay: boolean) {
+  const ios = /iPhone|iPad|iPod/.test(device.userAgent) || (/Macintosh/.test(device.userAgent) && device.maxTouchPoints > 1)
+  return ios && !standaloneDisplay && device.standalone !== true
+}
+
 export function waitForActiveWorker(registration: ServiceWorkerRegistration) {
   const worker = registration.installing ?? registration.waiting ?? registration.active
   if (worker?.state === 'activated') return Promise.resolve()

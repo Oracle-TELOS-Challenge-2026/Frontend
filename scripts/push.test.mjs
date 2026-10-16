@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
-import { getPushConfig, pushMessageText, waitForActiveWorker } from '../src/lib/push.ts'
+import { getPushConfig, needsIOSHomeScreen, pushMessageText, showForegroundPush, waitForActiveWorker } from '../src/lib/push.ts'
 
 const env = {
   VITE_FIREBASE_API_KEY: ' public-key ',
@@ -14,23 +14,40 @@ const env = {
 const origin = 'https://bintime.example'
 const workerSource = readFileSync(new URL('../public/firebase-messaging-sw.js', import.meta.url), 'utf8')
 
-function loadWorker(windows = [], configured = true) {
+function memoryCaches() {
+  const stores = new Map()
+  return { open: async (name) => {
+    if (!stores.has(name)) stores.set(name, new Map())
+    const entries = stores.get(name)
+    return {
+      match: async (key) => entries.get(typeof key === 'string' ? key : key.url),
+      put: async (key, response) => entries.set(typeof key === 'string' ? key : key.url, response),
+      keys: async () => [...entries.keys()].map((key) => new Request(key)),
+      delete: async (key) => entries.delete(typeof key === 'string' ? key : key.url),
+    }
+  } }
+}
+
+function loadWorker(windows = [], configured = true, cacheStorage = memoryCaches()) {
   const listeners = new Map()
   const notifications = []
   const opened = []
   const imports = []
   let backgroundMessage
   let initialized = false
+  let displayFailure
   const registration = {
+    scope: `${origin}/`,
     showNotification(title, options) {
       assert.equal(this, registration)
+      if (displayFailure) { const failure = displayFailure; displayFailure = undefined; throw failure }
       notifications.push({ title, ...options })
       return Promise.resolve()
     },
   }
   const query = configured ? '?apiKey=public-key&projectId=project&messagingSenderId=123&appId=app-id' : ''
   runInNewContext(workerSource, {
-    URL,
+    URL, Response, Promise, caches: cacheStorage,
     self: {
       location: { origin, protocol: 'https:', href: `${origin}/firebase-messaging-sw.js${query}` },
       addEventListener: (type, listener) => listeners.set(type, listener),
@@ -47,8 +64,13 @@ function loadWorker(windows = [], configured = true) {
       messaging: () => ({ onBackgroundMessage: (callback) => { backgroundMessage = callback } }),
     },
   })
+  registration.active = {
+    state: 'activated',
+    postMessage: (data, ports) => listeners.get('message')({ origin, data, ports, waitUntil: () => {} }),
+  }
   return {
     initialized, imports, notifications, opened, registration,
+    failNextDisplay: (failure) => { displayFailure = failure },
     receive: (payload) => backgroundMessage(payload),
     click: async (data) => {
       let pending
@@ -84,6 +106,126 @@ test('foreground messages format notification and data-only payloads without emp
   assert.equal(pushMessageText({ notification: { body: ' 예약 가능 ' } }), '예약 가능')
   assert.equal(pushMessageText({ data: { title: ' \n ', body: ' ' } }), '')
   assert.equal(pushMessageText({}), '')
+})
+
+test('foreground pushes display system notifications with app imagery and existing click routing', async () => {
+  const worker = loadWorker()
+  await showForegroundPush(worker.registration, {
+    notification: { title: ' 새 채팅 ', body: ' 안녕하세요 ', icon: 'https://external.example/icon.png' },
+    data: { title: '무시', notificationId: 'chat-1', url: '/owner/chat/room-1' }, messageId: 'message-1',
+  })
+  const notification = worker.notifications[0]
+  assert.deepEqual(JSON.parse(JSON.stringify(notification)), {
+    title: '새 채팅',
+    body: '안녕하세요', icon: '/icons/puzzle-mark-192.png', image: '/icons/puzzle-mark-512.png', badge: '/icons/puzzle-mark-badge-96.png',
+    tag: 'chat-1', data: { bintime: true, url: `${origin}/owner/chat/room-1`, notificationId: 'chat-1' },
+  })
+  await worker.click(notification.data)
+  assert.deepEqual(worker.opened, [`${origin}/owner/chat/room-1?notificationId=chat-1`])
+
+  await showForegroundPush(worker.registration, { data: { body: ' 예약 확정 ', shopId: 'shop/1' }, messageId: 'message-2' })
+  const fallback = worker.notifications[1]
+  assert.equal(fallback.title, '빈틈')
+  assert.equal(fallback.body, '예약 확정')
+  assert.equal(fallback.tag, 'message-2')
+  assert.equal(fallback.data.url, `${origin}/customer/shops/shop%2F1`)
+  await showForegroundPush(worker.registration, {})
+  await showForegroundPush(worker.registration, { data: { title: ' \n ', body: ' ' } })
+  assert.equal(worker.notifications.length, 2)
+})
+
+test('foreground pushes allow same-origin links and reject unsafe destinations', async () => {
+  const worker = loadWorker()
+  for (const [link, expected] of [
+    [`${origin}/customer/chat/shop-1?tab=messages#latest`, '/customer/chat/shop-1?tab=messages#latest'],
+    ['/owner?date=2026-10-18', '/owner?date=2026-10-18'],
+    ['https://external.example/path', '/'],
+    ['//external.example/path', '/'],
+    ['javascript:alert(1)', '/'],
+    [`blob:${origin}/test-id`, '/'],
+    ['http://bintime.example/path', '/'],
+    ['https://name:password@bintime.example/path', '/'],
+    ['http://[', '/'],
+  ]) {
+    for (const payload of [{ fcmOptions: { link }, data: { url: '/ignored' } }, { data: { url: link } }]) {
+      await showForegroundPush(worker.registration, { ...payload, notification: { title: '알림' } })
+      assert.equal(worker.notifications.at(-1).data.url, `${origin}${expected}`, link)
+    }
+  }
+})
+
+test('foreground pushes report missing workers, display failures, and response timeouts', async (t) => {
+  const payload = { notification: { title: '알림' } }
+  await assert.rejects(showForegroundPush({}, payload), /활성화/)
+  const worker = loadWorker()
+  worker.registration.showNotification = () => Promise.reject(new Error('permission denied'))
+  await assert.rejects(showForegroundPush(worker.registration, payload), /시스템 알림을 표시하지 못했어요/)
+  const unavailable = { active: { state: 'activated', postMessage: () => { throw new Error('worker stopped') } } }
+  await assert.rejects(showForegroundPush(unavailable, payload), /worker stopped/)
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const timedOut = assert.rejects(showForegroundPush({ active: { state: 'activated', postMessage: () => {} } }, payload), /시간이 초과/)
+  t.mock.timers.tick(10000)
+  await timedOut
+})
+
+test('shared worker deduplicates repeated IDs across tabs, background delivery, and worker restarts', async () => {
+  const cacheStorage = memoryCaches()
+  const worker = loadWorker([], true, cacheStorage)
+  const vacancy = { messageId: 'delivery-1', data: { type: 'VACANCY_MATCHED', title: '빈자리', notificationId: 'notice-1' } }
+  await Promise.all([
+    showForegroundPush(worker.registration, vacancy),
+    showForegroundPush(worker.registration, { ...vacancy, messageId: 'delivery-2' }),
+    worker.receive(vacancy),
+  ])
+  assert.equal(worker.notifications.length, 1)
+  const chat = { messageId: 'delivery-3', data: { type: 'CHAT_MESSAGE', title: '새 채팅', notificationId: 'notice-2', messageId: 'chat-1', roomId: 'room-1' } }
+  await Promise.all([
+    showForegroundPush(worker.registration, chat),
+    showForegroundPush(worker.registration, { ...chat, data: { ...chat.data, notificationId: 'notice-3' } }),
+  ])
+  assert.equal(worker.notifications.length, 2)
+  assert.equal(worker.notifications[1].tag, 'chat-1')
+  await worker.click(worker.notifications[1].data)
+  await showForegroundPush(worker.registration, chat)
+  assert.equal(worker.notifications.length, 2)
+
+  const restarted = loadWorker([], true, cacheStorage)
+  await showForegroundPush(restarted.registration, vacancy)
+  await restarted.receive(chat)
+  assert.equal(restarted.notifications.length, 0)
+  await restarted.receive({ ...chat, data: { ...chat.data, messageId: 'chat-2' } })
+  assert.equal(restarted.notifications.length, 1)
+})
+
+test('SDK automatic notifications share deduplication and failed displays remain retryable', async () => {
+  const worker = loadWorker()
+  const data = { type: 'CHAT_MESSAGE', title: '새 채팅', messageId: 'chat-1', notificationId: 'chat-1', roomId: 'room-1' }
+  const options = { data: { FCM_MSG: { data, fcmMessageId: 'delivery-1' } } }
+  await worker.registration.showNotification('새 채팅', options)
+  await worker.registration.showNotification('새 채팅', options)
+  await worker.receive({ notification: { title: '새 채팅' }, data })
+  await showForegroundPush(worker.registration, { notification: { title: '새 채팅' }, data })
+  assert.equal(worker.notifications.length, 1)
+
+  const retry = { data: { title: '빈자리', notificationId: 'retry-1' } }
+  worker.failNextDisplay(new Error('temporary display failure'))
+  await assert.rejects(showForegroundPush(worker.registration, retry), /시스템 알림/)
+  await showForegroundPush(worker.registration, retry)
+  assert.equal(worker.notifications.length, 2)
+})
+
+test('iOS installation guidance distinguishes browser tabs from home-screen apps', () => {
+  for (const device of [
+    { userAgent: 'Mozilla iPhone OS 17_0', maxTouchPoints: 5 },
+    { userAgent: 'Mozilla iPad OS 17_0', maxTouchPoints: 5 },
+    { userAgent: 'Mozilla Macintosh Intel Mac OS X', maxTouchPoints: 5 },
+  ]) {
+    assert.equal(needsIOSHomeScreen(device, false), true)
+    assert.equal(needsIOSHomeScreen(device, true), false)
+    assert.equal(needsIOSHomeScreen({ ...device, standalone: true }, false), false)
+  }
+  assert.equal(needsIOSHomeScreen({ userAgent: 'Mozilla Macintosh Intel Mac OS X', maxTouchPoints: 0 }, false), false)
+  assert.equal(needsIOSHomeScreen({ userAgent: 'Mozilla Android', maxTouchPoints: 5 }, false), false)
 })
 
 test('service worker activation waits for installation and rejects missing or failed workers', async () => {
@@ -234,4 +376,34 @@ test('notification clicks keep the ID for read state in both existing and new ta
   const invalid = loadWorker()
   await invalid.click({ bintime: true, url: '/customer/waitlist', notificationId: 'bad\nvalue' })
   assert.deepEqual(invalid.opened, [`${origin}/customer/waitlist`])
+})
+
+test('chat click metadata survives existing-tab messages and new-window query parameters', async () => {
+  const details = { notificationId: 'chat-1', notificationType: 'CHAT_MESSAGE', roomId: 'room/1', messageId: 'chat-1' }
+  const messages = []
+  const worker = loadWorker([{ url: origin, postMessage: (message) => messages.push({ ...message }), focus: () => {} }])
+  await showForegroundPush(worker.registration, { data: { title: '새 채팅', type: 'CHAT_MESSAGE', roomId: 'room/1', messageId: 'chat-1', notificationId: 'chat-1' } })
+  await worker.click(worker.notifications[0].data)
+  const url = `${origin}/chat?roomId=room%2F1`
+  assert.deepEqual(messages, [{ type: 'bintime:notification-click', url, ...details }])
+  const fresh = loadWorker()
+  await fresh.click({ FCM_MSG: { data: { title: '새 채팅', type: 'CHAT_MESSAGE', roomId: 'room/1', messageId: 'chat-1', notificationId: 'chat-1' } } })
+  const destination = new URL(url)
+  for (const [key, value] of Object.entries(details)) destination.searchParams.set(key, value)
+  assert.deepEqual(fresh.opened, [destination.href])
+  const invalid = loadWorker()
+  await invalid.click({ bintime: true, url: '/chat?roomId=room-1', notificationType: 'CHAT_MESSAGE', roomId: 'bad\nroom', messageId: 'x'.repeat(65) })
+  assert.deepEqual(invalid.opened, [`${origin}/chat?roomId=room-1&notificationType=CHAT_MESSAGE`])
+})
+
+test('chat and reservation notifications open their customer or owner destinations with read-state IDs', async () => {
+  for (const path of ['/customer/chat/room-1', '/owner/chat/room-1', '/customer/reservations/res-1', '/owner?date=2026-10-18']) {
+    const worker = loadWorker()
+    await worker.receive({ data: { title: '새 소식', body: '확인해 주세요.', url: path, notificationId: 'activity-1' } })
+    assert.equal(worker.notifications[0].data.url, `${origin}${path}`)
+    await worker.click(worker.notifications[0].data)
+    const destination = new URL(path, origin)
+    destination.searchParams.set('notificationId', 'activity-1')
+    assert.deepEqual(worker.opened, [destination.href])
+  }
 })

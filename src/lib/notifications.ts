@@ -2,10 +2,11 @@ import { apiId, BACKEND_API_ORIGIN, BackendApiError, mutateBackendApi, requestBa
 
 export interface NotificationItem {
   id: string
+  type: string
   title: string
   body: string
   path: string
-  availability: 'AVAILABLE' | 'UNAVAILABLE' | 'UNKNOWN'
+  availability: 'AVAILABLE' | 'UNAVAILABLE' | 'UNKNOWN' | 'NOT_APPLICABLE'
   readAt: string | null
   createdAt: string
 }
@@ -44,12 +45,19 @@ export function parseNotification(value: unknown): NotificationItem {
   const item = object(value)
   const id = text(item.id)
   apiId(id)
-  if (!['AVAILABLE', 'UNAVAILABLE', 'UNKNOWN'].includes(text(item.availability))) throw new Error('알림 상태가 올바르지 않아요.')
+  if (!['AVAILABLE', 'UNAVAILABLE', 'UNKNOWN', 'NOT_APPLICABLE'].includes(text(item.availability))) throw new Error('알림 상태가 올바르지 않아요.')
   return {
-    id, title: text(item.title), body: text(item.body), path: notificationPath(object(item.action).path),
+    id, type: text(item.type), title: text(item.title), body: text(item.body), path: notificationPath(object(item.action).path),
     availability: item.availability as NotificationItem['availability'],
     readAt: item.readAt === null ? null : timestamp(item.readAt), createdAt: timestamp(item.createdAt),
   }
+}
+
+export function notificationActionLabel(item: NotificationItem) {
+  if (item.type === 'VACANCY_MATCHED') return item.availability === 'UNAVAILABLE' ? null : '빈자리 확인하기'
+  if (item.type === 'CHAT_MESSAGE') return '채팅 확인하기'
+  if (item.type.startsWith('RESERVATION_')) return '예약 확인하기'
+  return '내용 확인하기'
 }
 
 export function mergeNotifications(current: NotificationItem[], incoming: NotificationItem[]) {

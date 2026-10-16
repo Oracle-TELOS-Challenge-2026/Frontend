@@ -132,14 +132,15 @@ VITE_FIREBASE_VAPID_KEY=웹_푸시_인증서의_공개키
 ### 알림 연결 확인
 
 1. HTTPS 배포 주소 또는 `http://localhost:5173`에서 실제 계정으로 로그인합니다.
+   iPhone·iPad는 iOS·iPadOS 16.4 이상에서 공유 메뉴의 **홈 화면에 추가**로 설치한 뒤, 추가한 아이콘으로 실행합니다. 일반 브라우저 탭에는 설치 안내를 표시하고 권한 요청·등록은 시도하지 않습니다.
 2. **마이페이지 → 알림 켜기**를 누르고 브라우저 알림 권한을 허용합니다.
 3. Firebase 등록 뒤 서버 구독 API가 성공하고 화면에 연결 완료가 표시되는지 확인합니다.
-4. 조건에 맞는 대기를 신청한 테스트 계정으로 빈자리 발행 후, 활성 탭 토스트와 백그라운드 시스템 알림을 확인합니다. 실제 데이터가 생성되므로 운영 계정의 임의 예약·발행으로 테스트하지 않습니다.
+4. 조건에 맞는 대기를 신청한 테스트 계정으로 빈자리 발행 후, 활성 탭의 토스트·시스템 알림과 백그라운드 시스템 알림을 확인합니다. macOS에서는 시스템 설정의 해당 브라우저 알림 허용·알림 센터 표시도 확인합니다. 실제 데이터가 생성되므로 운영 계정의 임의 예약·발행으로 테스트하지 않습니다.
 5. **알림 끄기**에서 서버 구독과 Firebase 등록 해제가 완료되는지 확인합니다.
 
 Firebase JS SDK 13의 `register`/`onRegistered`/`unregister`로 등록을 관리합니다. `public/firebase-messaging-sw.js`는 같은 버전의 compat SDK를 사용하고 공개 설정을 등록 URL에서 받습니다. 브라우저 자체의 알림 권한은 사이트 설정에서 관리합니다.
 
-시스템 알림의 아이콘은 `/icons/puzzle-mark-192.png`, 큰 이미지는 `/icons/puzzle-mark-512.png`, 상태표시 배지는 단색 퍼즐 실루엣 `/icons/puzzle-mark-badge-96.png`로 고정합니다. 서비스 워커에서 SDK 초기화 전에 `showNotification`의 이미지 옵션만 덮어쓰므로 콘솔 테스트·일반 알림·데이터 전용 알림에 동일하게 적용되고 제목·본문·클릭 정보는 유지됩니다. Firebase/Vercel의 추가 설정은 필요 없으며, 배포 후 사이트를 다시 열어 새 서비스 워커를 적용합니다. 실제 이미지 표시 크기·위치와 브라우저 자체 아이콘은 OS/브라우저가 결정합니다.
+시스템 알림의 아이콘은 `/icons/puzzle-mark-192.png`, 큰 이미지는 `/icons/puzzle-mark-512.png`, 상태표시 배지는 단색 퍼즐 실루엣 `/icons/puzzle-mark-badge-96.png`로 고정합니다. 서비스 워커에서 SDK 초기화 전에 `showNotification`에 공통 이미지와 중복 방지를 적용하며 제목·본문·클릭 정보는 유지합니다. Firebase/Vercel의 추가 설정은 필요 없으며, 배포 후 사이트를 다시 열어 새 서비스 워커를 적용합니다. 실제 이미지 표시 크기·위치와 브라우저 자체 아이콘은 OS/브라우저가 결정합니다. 배너·소리·잠금 화면 표시는 기기 알림 설정과 집중 모드도 확인합니다.
 
 ### 백엔드 알림 계약
 
@@ -151,9 +152,14 @@ Firebase JS SDK 13의 `register`/`onRegistered`/`unregister`로 등록을 관리
 | `data.url` | 앱 내부 이동 경로. 예: `/customer/waitlist` |
 | `data.shopId` | `url`이 없을 때 매장 상세로 이동 |
 | `data.notificationId` | 알림 식별자 |
+| `data.type`, `data.roomId`, `data.messageId` | 채팅 알림은 `CHAT_MESSAGE`, 대상 채팅방 ID, 메시지 ID |
 | `webpush.fcm_options.link` | 배포 앱과 동일한 origin의 전체 HTTPS URL |
 
-`data` 값은 문자열입니다. `notification`이 있으면 백그라운드 표시를 FCM SDK에 맡겨 중복 표시를 피하고, 데이터 전용 메시지는 서비스 워커가 표시합니다. 클릭 이동은 같은 origin만 허용합니다.
+`data` 값은 문자열입니다. 활성 탭에서 FCM을 받으면 기존 인앱 토스트·알림함 갱신과 별도로, 서비스 워커에 시스템 알림 표시를 요청합니다. 공통 표시 큐와 최근 500개 ID의 캐시로 여러 탭·재수신·워커 재시작의 중복 표시를 막습니다. 일반 알림은 `notificationId`, 채팅은 `messageId`를 우선 사용합니다. `notification`이 있으면 백그라운드 표시를 FCM SDK에 맡기고, 데이터 전용 메시지만 직접 표시합니다.
+
+클릭 이동은 같은 origin만 허용합니다. `/chat?roomId=...`는 로그인 후 실제 채팅방 목록과 가게 소유 여부를 확인해 고객·사장님 채팅 화면으로 이동합니다. 채팅 알림의 `notificationId`가 메시지 ID여도 알림함 읽음 API에 보내지 않고, 대화를 실제 연 뒤 기존 채팅 읽음 처리를 사용합니다. 로그인이 필요하면 알림 목적지를 보관했다가 복원합니다.
+
+iPhone 지원 조건: [WebKit 홈 화면 웹 앱 푸시 안내](https://webkit.org/blog/13878/). 포그라운드 수신 처리: [Firebase 문서](https://firebase.google.com/docs/cloud-messaging/web/receive-messages).
 
 ## 백엔드 명세와 연결 상태
 
