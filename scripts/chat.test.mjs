@@ -241,7 +241,7 @@ function mockSockets(t) {
     constructor(url, protocol) { this.url = url; this.protocol = protocol; sockets.push(this) }
     open() { this.readyState = 1; this.onopen() }
     send(data) { this.sent.push(JSON.parse(data)) }
-    receive(type, payload) { this.onmessage({ data: JSON.stringify({ type, payload }) }) }
+    receive(type, payload, requestId) { this.onmessage({ data: JSON.stringify({ type, payload, requestId }) }) }
     close(code = 1000) { this.readyState = 3; this.onclose?.({ code }) }
   }
   globalThis.WebSocket = Socket
@@ -255,7 +255,7 @@ test('WebSocket authenticates, replays messages, separates state-only updates an
   const sockets = mockSockets(t)
   let sequence = 1
   const messages = [], reads = [], resyncs = []
-  const stop = connectChatRoom('room', 'customer', {
+  const { close: stop } = connectChatRoom('room', 'customer', {
     sequence: () => sequence,
     message: (item, updated) => { messages.push([item.id, updated]); if (!updated) sequence = Math.max(sequence, item.sequence) },
     read: (user, position) => reads.push([user, position]),
@@ -290,7 +290,7 @@ test('WebSocket retries network closure but stops after session rejection and di
   mockFetch(t, () => response({ csrfToken: 'csrf' }))
   const sockets = mockSockets(t)
   const statuses = []
-  const stop = connectChatRoom('room', 'customer', { sequence: () => 0, message: () => {}, read: () => {}, resync: async () => {}, status: (...value) => statuses.push(value) })
+  const { close: stop } = connectChatRoom('room', 'customer', { sequence: () => 0, message: () => {}, read: () => {}, resync: async () => {}, status: (...value) => statuses.push(value) })
   t.after(stop)
   await flushSocket()
   sockets[0].close(1006)
@@ -313,7 +313,7 @@ test('retryable subscription errors reconnect after the server delay and subscri
   mockFetch(t, () => response({ csrfToken: 'csrf' }))
   const sockets = mockSockets(t)
   const statuses = []
-  const stop = connectChatRoom('room', 'customer', { sequence: () => 7, message: () => {}, read: () => {}, resync: async () => {}, status: (...value) => statuses.push(value) })
+  const { close: stop } = connectChatRoom('room', 'customer', { sequence: () => 7, message: () => {}, read: () => {}, resync: async () => {}, status: (...value) => statuses.push(value) })
   t.after(stop)
   await flushSocket()
   sockets[0].open()
@@ -341,7 +341,7 @@ test('permanent subscription errors close the socket without retrying', async (t
   mockFetch(t, () => response({ csrfToken: 'csrf' }))
   const sockets = mockSockets(t)
   const statuses = []
-  const stop = connectChatRoom('room', 'customer', { sequence: () => 0, message: () => {}, read: () => {}, resync: async () => {}, status: (...value) => statuses.push(value) })
+  const { close: stop } = connectChatRoom('room', 'customer', { sequence: () => 0, message: () => {}, read: () => {}, resync: async () => {}, status: (...value) => statuses.push(value) })
   t.after(stop)
   await flushSocket()
   sockets[0].open()
@@ -353,4 +353,144 @@ test('permanent subscription errors close the socket without retrying', async (t
   await flushSocket()
   assert.equal(sockets.length, 1)
   assert.deepEqual(statuses.at(-1), [false, 'ROOM_NOT_FOUND'])
+})
+
+test('rapid sends appear immediately, survive room refresh and reach HTTP in order', async (t) => {
+  const writes = [], completions = []
+  mockFetch(t, (url, options) => {
+    if (url.pathname.endsWith('/csrf')) return response({ csrfToken: 'token' })
+    if (url.pathname.endsWith('/rooms')) return response({ items: [room()], page: { hasNext: false, nextCursor: null } })
+    const input = JSON.parse(options.body)
+    writes.push(input)
+    return new Promise((resolve) => completions.push(() => resolve(response({ ...message(writes.length), ...input }))))
+  })
+  const chat = captureChat()
+  await chat.refreshRooms()
+  const first = chat.sendMessage('room', '첫 번째', 'first')
+  const second = chat.sendMessage('room', '두 번째', 'second')
+  assert.deepEqual((await chat.openShopChat('shop')).outgoing.map((item) => item.content), ['첫 번째', '두 번째'])
+  await flushSocket()
+  assert.equal(writes.length, 1, 'second send waits for the first acknowledgement')
+  await chat.refreshRooms()
+  assert.equal((await chat.openShopChat('shop')).outgoing.length, 2)
+  completions[0]()
+  await first
+  await flushSocket()
+  assert.equal(writes.length, 2)
+  assert.deepEqual((await chat.openShopChat('shop')).outgoing.map((item) => item.content), ['두 번째'])
+  completions[1]()
+  await second
+  const saved = await chat.openShopChat('shop')
+  assert.equal(saved.outgoing.length, 0)
+  assert.deepEqual(saved.messages.map((item) => item.content), ['첫 번째', '두 번째'])
+})
+
+test('failed sends retain text and retry with the same identity without duplicate requests', async (t) => {
+  let fail = true
+  const keys = []
+  mockFetch(t, (url, options) => {
+    if (url.pathname.endsWith('/csrf')) return response({ csrfToken: 'token' })
+    if (url.pathname.endsWith('/rooms')) return response({ items: [room()], page: { hasNext: false, nextCursor: null } })
+    const input = JSON.parse(options.body)
+    keys.push(input.clientMessageId)
+    if (fail) throw new TypeError('network disconnected')
+    return response({ ...message(), ...input })
+  })
+  const chat = captureChat()
+  await chat.refreshRooms()
+  await assert.rejects(chat.sendMessage('room', '보존할 내용', 'retry'), { code: 'NETWORK_ERROR' })
+  const failed = (await chat.openShopChat('shop')).outgoing[0]
+  assert.equal(failed.content, '보존할 내용')
+  assert.ok(failed.error)
+  fail = false
+  const retry = chat.sendMessage('room', failed.content, failed.clientMessageId)
+  assert.equal(chat.sendMessage('room', failed.content, failed.clientMessageId), retry)
+  await retry
+  await chat.sendMessage('room', failed.content, failed.clientMessageId)
+  assert.deepEqual(keys, ['retry', 'retry'])
+  assert.equal((await chat.openShopChat('shop')).messages.length, 1)
+  assert.equal((await chat.openShopChat('shop')).outgoing.length, 0)
+})
+
+test('history acknowledgement wins over a lost send response', async (t) => {
+  let loseResponse
+  const delayed = new Promise((_resolve, reject) => { loseResponse = reject })
+  mockFetch(t, (url, options) => {
+    if (url.pathname.endsWith('/csrf')) return response({ csrfToken: 'token' })
+    if (url.pathname.endsWith('/rooms')) return response({ items: [room()], page: { hasNext: false, nextCursor: null } })
+    if (options.method === 'POST') return delayed
+    return response({ items: [{ ...message(), content: '저장됨', clientMessageId: 'saved' }], page: { hasOlder: false, nextBeforeSequence: null } })
+  })
+  const chat = captureChat()
+  await chat.refreshRooms()
+  const sent = chat.sendMessage('room', '저장됨', 'saved')
+  await flushSocket()
+  await chat.loadMessages('room')
+  loseResponse(new TypeError('lost acknowledgement'))
+  await sent
+  const saved = await chat.openShopChat('shop')
+  assert.equal(saved.outgoing.length, 0)
+  assert.equal(saved.messages.length, 1)
+})
+
+async function readySocket(t) {
+  let csrfRequests = 0
+  mockFetch(t, () => { csrfRequests++; return response({ csrfToken: 'csrf' }) })
+  const sockets = mockSockets(t)
+  const transport = connectChatRoom('room', 'customer', { sequence: () => 0, message: () => {}, read: () => {}, resync: async () => {}, status: () => {} })
+  t.after(() => transport.close())
+  assert.equal(transport.sendMessage('아직 연결 전', 'not-sent'), null)
+  await flushSocket()
+  const socket = sockets[0]
+  socket.open()
+  socket.receive('connection.ready', { userId: 'customer' })
+  socket.receive('room.subscribed', { roomId: 'room', replayThroughSequence: 0 })
+  await flushSocket()
+  return { transport, socket, csrfRequests: () => csrfRequests }
+}
+
+test('WebSocket sends reuse authentication and resolve only their matching persisted acknowledgement', async (t) => {
+  const { transport, socket, csrfRequests } = await readySocket(t)
+  for (const sequence of [1, 2]) {
+    const content = `메시지 ${sequence}`
+    const pending = transport.sendMessage(content, `fast-${sequence}`)
+    const frame = socket.sent.at(-1)
+    assert.equal(frame.type, 'message.send')
+    assert.deepEqual(frame.payload, { roomId: 'room', clientMessageId: `fast-${sequence}`, content })
+    let settled = false
+    void pending.then(() => { settled = true })
+    socket.receive('message.ack', { message: { ...message(sequence), clientMessageId: `fast-${sequence}` } }, 'unrelated-request')
+    await flushSocket()
+    assert.equal(settled, false)
+    socket.receive('message.ack', { message: { ...message(sequence), clientMessageId: `fast-${sequence}` } }, frame.requestId)
+    assert.equal((await pending).sequence, sequence)
+  }
+  assert.equal(csrfRequests(), 1, 'no per-message HTTP or CSRF request')
+})
+
+test('message validation errors reject the send without closing the room connection', async (t) => {
+  const { transport, socket } = await readySocket(t)
+  const sent = transport.sendMessage('보낼 내용', 'rejected')
+  const rejected = assert.rejects(sent, { code: 'ROOM_READ_ONLY' })
+  socket.receive('error', { code: 'ROOM_READ_ONLY', message: '종료된 대화예요.', retryable: false }, socket.sent.at(-1).requestId)
+  await rejected
+  assert.equal(socket.readyState, 1)
+})
+
+test('socket loss, acknowledgement timeout and expired sessions settle pending sends distinctly', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const first = await readySocket(t)
+  const lost = assert.rejects(first.transport.sendMessage('끊김', 'lost'), { code: 'WS_DISCONNECTED' })
+  first.socket.close(1006)
+  await lost
+  first.transport.close()
+  const second = await readySocket(t)
+  const timeout = assert.rejects(second.transport.sendMessage('시간 초과', 'timeout'), { code: 'WS_TIMEOUT' })
+  t.mock.timers.tick(5000)
+  await timeout
+  second.transport.close()
+  const third = await readySocket(t)
+  const expired = assert.rejects(third.transport.sendMessage('만료', 'expired'), { status: 401, code: 'SESSION_EXPIRED' })
+  third.socket.close(4401)
+  await expired
 })

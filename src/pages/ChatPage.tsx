@@ -15,7 +15,6 @@ const proposalStatus = { PENDING: '고객 확인 대기', CONFIRMED: '예약 확
 export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<typeof useChat>; role: Role; userId: string; ownerShop?: RegisteredShop | null }) {
   const { id } = useParams()
   const [message, setMessage] = useState('')
-  const [sending, setSending] = useState(false)
   const [syncError, setSyncError] = useState('')
   const [sendError, setSendError] = useState('')
   const [openingFailed, setOpeningFailed] = useState(false)
@@ -28,11 +27,10 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
   const confirmationKeys = useRef(new Map<string, string>())
   const messagesEnd = useRef<HTMLDivElement>(null)
   const messageInput = useRef<HTMLInputElement>(null)
-  const sendingRef = useRef(false)
-  const draft = useRef<{ content: string; id: string } | null>(null)
   const conversation = chat.conversations.find((room) => role === 'customer' ? room.store.id === id && room.customer.id === userId : room.id === id)
   const conversationId = conversation?.id
   const lastMessageId = conversation?.messages.at(-1)?.id
+  const lastOutgoingId = conversation?.outgoing.at(-1)?.clientMessageId
   const latestSequence = conversation?.messages.at(-1)?.sequence
   const lastReadSequence = conversation?.lastReadSequence
   const realtimeConnected = chat.realtime.connected
@@ -89,7 +87,7 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
     return () => { active = false; window.clearInterval(interval); document.removeEventListener('visibilitychange', markRead) }
   }, [conversationId, latestSequence, lastReadSequence, readConversation])
 
-  useEffect(() => { messagesEnd.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }, [lastMessageId])
+  useEffect(() => { messagesEnd.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }, [lastMessageId, lastOutgoingId])
 
   const error = sendError || syncError || chat.error
   const fallback = role === 'owner' ? '/owner/chats' : '/customer'
@@ -101,21 +99,13 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
   const source = conversation.messages.findLast((item) => item.sender.role === 'CUSTOMER' && item.type === 'TEXT')
   const showSuggestion = suggestion && suggestion.messageId !== dismissedId
 
-  async function submitMessage() {
-    if (!conversation || sendingRef.current || !message.trim() || readOnly) return
+  function submitMessage() {
+    if (!conversation || !message.trim() || readOnly) return
     messageInput.current?.focus()
-    sendingRef.current = true
-    setSending(true)
     setSendError('')
     const content = message.trim()
-    if (draft.current?.content !== content) draft.current = { content, id: crypto.randomUUID() }
-    try {
-      await sendMessage(conversation.id, content, draft.current.id)
-      setMessage('')
-      draft.current = null
-    } catch (cause) {
-      setSendError(cause instanceof Error ? cause.message : '메시지를 보내지 못했어요. 다시 보내 주세요.')
-    } finally { sendingRef.current = false; setSending(false); messageInput.current?.focus() }
+    setMessage('')
+    void sendMessage(conversation.id, content, crypto.randomUUID()).catch(() => {})
   }
 
   async function confirm() {
@@ -143,7 +133,7 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
       {conversation.nextBeforeSequence !== null && <button type="button" className="button secondary small" onClick={() => {
         void loadMessages(conversation.id, conversation.nextBeforeSequence!).catch((cause: unknown) => setSyncError(cause instanceof Error ? cause.message : '이전 메시지를 불러오지 못했어요.'))
       }}>이전 메시지 보기</button>}
-      {!conversation.messagesLoaded ? <p className="muted">메시지를 불러오는 중이에요.</p> : conversation.messages.length === 0 && <p className="empty-state">첫 인사를 건네보세요.</p>}
+      {!conversation.messagesLoaded ? <p className="muted">메시지를 불러오는 중이에요.</p> : conversation.messages.length === 0 && conversation.outgoing.length === 0 && <p className="empty-state">첫 인사를 건네보세요.</p>}
       {conversation.messages.map((item, index) => {
         const previous = conversation.messages[index - 1]
         const grouped = continuesMessageGroup(item, conversation.messages[index + 1])
@@ -165,7 +155,11 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
             {(!grouped || unread) && <span className="chat-message-meta">{unread && <small className="chat-unread" aria-label="상대방 읽음 미확인">1</small>}{!grouped && <time dateTime={item.createdAt}>{timeLabel(item.createdAt)}</time>}</span>}
           </div>
         </Fragment>
-      })}<div ref={messagesEnd} />
+      })}
+      {conversation.outgoing.map((item) => <div key={item.clientMessageId} className="chat-message mine pending">
+        <div className="chat-message-content"><p>{item.content}</p></div>
+        <span className="chat-message-meta chat-delivery" role="status">{item.error ? <><small className="chat-delivery-error">{item.error}</small><button type="button" className="account-text-button" onClick={() => { messageInput.current?.focus(); void sendMessage(conversation.id, item.content, item.clientMessageId).catch(() => {}) }}>다시 보내기</button></> : <small>전송 중…</small>}<time dateTime={item.createdAt}>{timeLabel(item.createdAt)}</time></span>
+      </div>)}<div ref={messagesEnd} />
     </div>
     {showSuggestion && source && <section className="chat-suggestion" aria-label="예약 제안 안내">
       <div><Icon name="calendar" size={18} /><strong>{role === 'owner' ? '예약 요청이 보여요' : '예약 의사를 전달했어요'}</strong><button className="icon-button" type="button" aria-label="예약 제안 안내 닫기" onClick={() => setDismissedId(suggestion.messageId)}><Icon name="close" size={16} /></button></div>
@@ -179,6 +173,6 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
       {sendError && <p className="form-error" role="alert">{sendError}</p>}
       <div className="customer-dialog-actions"><button type="button" className="button secondary" disabled={confirming} onClick={() => setConfirmation(null)}>돌아가기</button><button type="button" className="button" disabled={confirming} onClick={() => void confirm()}>{confirming ? '예약 확정 중…' : '예약 확정하기'}</button></div>
     </Modal>}
-    {readOnly ? <p className="chat-status">종료된 대화에서는 메시지를 보낼 수 없어요.</p> : <form className="chat-composer" onSubmit={(event) => { event.preventDefault(); void submitMessage() }}><label className="sr-only" htmlFor="chat-message">메시지</label><input ref={messageInput} id="chat-message" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={2000} placeholder="메시지를 입력해 주세요" autoComplete="off" readOnly={sending} /><button type="submit" className="send-button" aria-label={sending ? '메시지 전송 중' : '메시지 보내기'} disabled={!message.trim() || sending}><Icon name="send" size={20} /></button></form>}
+    {readOnly ? <p className="chat-status">종료된 대화에서는 메시지를 보낼 수 없어요.</p> : <form className="chat-composer" onSubmit={(event) => { event.preventDefault(); submitMessage() }}><label className="sr-only" htmlFor="chat-message">메시지</label><input ref={messageInput} id="chat-message" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={2000} placeholder="메시지를 입력해 주세요" autoComplete="off" /><button type="submit" className="send-button" aria-label="메시지 보내기" disabled={!message.trim()}><Icon name="send" size={20} /></button></form>}
   </div>
 }

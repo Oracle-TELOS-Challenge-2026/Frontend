@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { confirmBookingProposal, connectChatRoom, createChatRoom, fetchChatMessages, fetchChatRooms, mergeChatMessages, postBookingProposal, postChatMessage, putChatRead } from '../lib/chat.ts'
 import type { ChatMessage, ChatRoom } from '../lib/chat'
 import type { ChatBookingInput } from '../lib/chat-booking'
+import { BackendApiError } from '../lib/backend-api.ts'
 
 export function useChat(userId: string | null | undefined) {
   const [conversations, setConversations] = useState<ChatRoom[]>([])
@@ -16,7 +17,19 @@ export function useChat(userId: string | null | undefined) {
   const messageLoads = useRef(new Map<string, Promise<void>>())
   const syncedSequences = useRef(new Map<string, number>())
   const reads = useRef(new Map<string, Promise<void>>())
+  const connection = useRef<{ roomId: string; transport: ReturnType<typeof connectChatRoom> } | null>(null)
+  const sends = useRef(new Map<string, Promise<void>>())
+  const sendQueues = useRef(new Map<string, Promise<void>>())
+  const sendEpoch = useRef(0)
   const session = useRef(userId)
+  const hasOutgoing = conversations.some((room) => room.outgoing.length > 0)
+
+  useEffect(() => {
+    if (!hasOutgoing) return
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [hasOutgoing])
 
   const updateRooms = useCallback((update: (current: ChatRoom[]) => ChatRoom[]) => {
     rooms.current = update(rooms.current)
@@ -31,7 +44,7 @@ export function useChat(userId: string | null | undefined) {
       updateRooms((current) => result.map((room) => {
         const existing = current.find((item) => item.id === room.id)
         return existing ? {
-          ...room, messages: existing.messages, messagesLoaded: existing.messagesLoaded, nextBeforeSequence: existing.nextBeforeSequence,
+          ...room, messages: existing.messages, messagesLoaded: existing.messagesLoaded, nextBeforeSequence: existing.nextBeforeSequence, outgoing: existing.outgoing,
           lastMessage: mergeChatMessages(existing.lastMessage ? [existing.lastMessage] : [], room.lastMessage ? [room.lastMessage] : []).at(-1) ?? null,
           lastReadSequence: Math.max(existing.lastReadSequence, room.lastReadSequence),
           peerReadSequence: existing.peerReadSequence,
@@ -48,6 +61,9 @@ export function useChat(userId: string | null | undefined) {
 
   useEffect(() => {
     session.current = userId
+    sendEpoch.current++
+    sends.current.clear()
+    sendQueues.current.clear()
     opening.current.clear()
     roomKeys.current.clear()
     messageLoads.current.clear()
@@ -116,6 +132,7 @@ export function useChat(userId: string | null | undefined) {
       if (beforeSequence === undefined) syncedSequences.current.set(roomId, Math.max(syncedSequences.current.get(roomId) ?? 0, messages.at(-1)?.sequence ?? 0))
       updateRooms((current) => current.map((room) => room.id === roomId ? {
         ...room, messages: mergeChatMessages(room.messages, messages), messagesLoaded: true,
+        outgoing: room.outgoing.filter((item) => !messages.some((message) => message.sender.id === userId && message.clientMessageId === item.clientMessageId)),
         nextBeforeSequence: beforeSequence !== undefined || !room.messagesLoaded ? page.nextBeforeSequence : room.nextBeforeSequence,
       } : room))
     })().finally(() => { if (messageLoads.current.get(key) === request) messageLoads.current.delete(key) })
@@ -126,6 +143,7 @@ export function useChat(userId: string | null | undefined) {
   const receiveMessage = useCallback((message: ChatMessage, updated = false) => {
     updateRooms((current) => current.map((room) => room.id === message.roomId ? {
       ...room, messages: mergeChatMessages(room.messages, [message]),
+      outgoing: room.outgoing.filter((item) => message.sender.id !== userId || item.clientMessageId !== message.clientMessageId),
       lastMessage: mergeChatMessages(room.lastMessage ? [room.lastMessage] : [], [message]).at(-1)!,
       unreadCount: room.unreadCount + (!updated && message.sender.id !== userId && message.sequence > room.lastReadSequence && !room.messages.some((item) => item.id === message.id) && message.sequence > (room.lastMessage?.sequence ?? 0) ? 1 : 0),
     } : room))
@@ -134,11 +152,11 @@ export function useChat(userId: string | null | undefined) {
   useEffect(() => {
     if (!userId || !activeRoom) return
     let active = true
-    let close: (() => void) | undefined
+    let transport: ReturnType<typeof connectChatRoom> | undefined
     // A failed initial history fetch must not prevent WebSocket from recovering the room.
     void loadMessages(activeRoom).catch(() => {}).then(() => {
       if (!active) return
-      close = connectChatRoom(activeRoom, userId, {
+      transport = connectChatRoom(activeRoom, userId, {
         sequence: () => syncedSequences.current.get(activeRoom) ?? 0,
         message: (message, updated) => {
           if (!active) return
@@ -155,15 +173,57 @@ export function useChat(userId: string | null | undefined) {
         resync: (cached) => loadMessages(activeRoom, undefined, cached),
         status: (connected, error) => { if (active) setRealtime({ connected, error }) },
       })
+      connection.current = { roomId: activeRoom, transport }
     })
-    return () => { active = false; close?.() }
+    return () => {
+      active = false
+      if (connection.current?.transport === transport) connection.current = null
+      transport?.close()
+    }
   }, [userId, activeRoom, loadMessages, receiveMessage, updateRooms])
 
-  const sendMessage = useCallback(async (roomId: string, content: string, clientMessageId: string) => {
-    const message = await postChatMessage(roomId, content, clientMessageId)
-    if (session.current !== userId) return
-    receiveMessage(message)
-  }, [userId, receiveMessage])
+  const sendMessage = useCallback((roomId: string, content: string, clientMessageId: string): Promise<void> => {
+    const room = rooms.current.find((item) => item.id === roomId)
+    if (!userId || !room || room.status !== 'OPEN') return Promise.reject(new Error('메시지를 보낼 수 없는 대화예요.'))
+    const key = `${roomId}:${clientMessageId}`
+    const existing = room.outgoing.find((item) => item.clientMessageId === clientMessageId)
+    const trimmed = content.trim()
+    if (existing && existing.content !== trimmed) return Promise.reject(new Error('재전송할 메시지 내용이 달라요.'))
+    const inFlight = sends.current.get(key)
+    if (inFlight) return inFlight
+    if (room.messages.some((item) => item.sender.id === userId && item.clientMessageId === clientMessageId)) return Promise.resolve()
+    if (!trimmed || trimmed.length > 2000) return Promise.reject(new Error('메시지는 1~2000자로 입력해 주세요.'))
+    const outgoing = { clientMessageId, content: trimmed, createdAt: existing?.createdAt ?? new Date().toISOString(), error: '' }
+    updateRooms((current) => current.map((item) => item.id === roomId ? { ...item, outgoing: existing ? item.outgoing.map((sent) => sent.clientMessageId === clientMessageId ? outgoing : sent) : [...item.outgoing, outgoing] } : item))
+    const epoch = sendEpoch.current
+    const currentSession = () => session.current === userId && sendEpoch.current === epoch
+    // Keep rapid sends in order; the composer stays available while this room's queue drains.
+    const request = (sendQueues.current.get(roomId) ?? Promise.resolve()).catch(() => {}).then(async () => {
+      if (!currentSession()) throw new Error('로그인 계정이 변경됐어요.')
+      const socket = connection.current?.roomId === roomId ? connection.current.transport : null
+      let message: ChatMessage | undefined
+      try { message = await socket?.sendMessage(trimmed, clientMessageId) ?? undefined }
+      catch (cause) {
+        if (!(cause instanceof BackendApiError) || !['WS_DISCONNECTED', 'WS_TIMEOUT'].includes(cause.code)) throw cause
+      }
+      if (!currentSession()) throw new Error('로그인 계정이 변경됐어요.')
+      // The same clientMessageId makes a lost socket acknowledgement safe to retry over HTTP.
+      message ??= await postChatMessage(roomId, trimmed, clientMessageId)
+      if (currentSession()) receiveMessage(message)
+    }).catch((cause: unknown) => {
+      if (currentSession()) {
+        if (rooms.current.find((item) => item.id === roomId)?.messages.some((item) => item.sender.id === userId && item.clientMessageId === clientMessageId)) return
+        updateRooms((current) => current.map((item) => item.id === roomId ? { ...item, outgoing: item.outgoing.map((sent) => sent.clientMessageId === clientMessageId ? { ...sent, error: cause instanceof Error ? cause.message : '전송하지 못했어요.' } : sent) } : item))
+      }
+      throw cause
+    }).finally(() => {
+      if (sends.current.get(key) === request) sends.current.delete(key)
+      if (sendQueues.current.get(roomId) === request) sendQueues.current.delete(roomId)
+    })
+    sends.current.set(key, request)
+    sendQueues.current.set(roomId, request)
+    return request
+  }, [userId, receiveMessage, updateRooms])
 
   const sendProposal = useCallback(async (roomId: string, sourceMessageId: string, serviceId: string, input: ChatBookingInput, key: string) => {
     const message = await postBookingProposal(roomId, sourceMessageId, serviceId, input, key)

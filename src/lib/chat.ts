@@ -42,6 +42,7 @@ export interface ChatRoom {
   messages: ChatMessage[]
   messagesLoaded: boolean
   nextBeforeSequence: number | null
+  outgoing: { clientMessageId: string; content: string; createdAt: string; error: string }[]
 }
 
 function invalid(): never {
@@ -113,7 +114,7 @@ export function parseChatRoom(value: unknown): ChatRoom {
     id, store: { id: text(store.id), name: text(store.name), imageUrl: store.imageUrl === null ? null : text(store.imageUrl) },
     customer: { id: text(customer.id), displayName: text(customer.displayName) }, status: item.status,
     lastMessage, unreadCount: integer(item.unreadCount), lastReadSequence: integer(item.lastReadSequence), createdAt: timestamp(item.createdAt),
-    messages: [], messagesLoaded: false, nextBeforeSequence: null,
+    messages: [], messagesLoaded: false, nextBeforeSequence: null, outgoing: [],
   }
 }
 
@@ -173,9 +174,14 @@ export async function createChatRoom(storeId: string, idempotencyKey: string): P
   return room
 }
 
-export async function postChatMessage(roomId: string, content: string, clientMessageId: string): Promise<ChatMessage> {
+function messageContent(content: string): string {
   const trimmed = content.trim()
   if (!trimmed || trimmed.length > 2000) throw new Error('메시지는 1~2000자로 입력해 주세요.')
+  return trimmed
+}
+
+export async function postChatMessage(roomId: string, content: string, clientMessageId: string): Promise<ChatMessage> {
+  const trimmed = messageContent(content)
   const { data } = await mutateBackendApi(`/api/v1/chatting/rooms/${apiId(roomId)}/messages`, {
     body: { content: trimmed, clientMessageId }, idempotencyKey: clientMessageId,
   })
@@ -218,12 +224,18 @@ export function connectChatRoom(roomId: string, userId: string, handlers: {
   read: (userId: string, sequence: number) => void
   resync: (cached: boolean) => Promise<void>
   status: (connected: boolean, error: string) => void
-}): () => void {
+}) {
   let socket: WebSocket | undefined
+  let subscribed = false
   let retry: ReturnType<typeof setTimeout> | undefined
   let stopped = false
   let attempts = 0
   const controller = new AbortController()
+  const pending = new Map<string, { clientMessageId: string; content: string; resolve: (message: ChatMessage) => void; reject: (cause: Error) => void; timer: ReturnType<typeof setTimeout> }>()
+  const rejectPending = (cause: Error) => {
+    for (const request of pending.values()) { clearTimeout(request.timer); request.reject(cause) }
+    pending.clear()
+  }
   const send = (type: string, payload: object) => socket?.readyState === WebSocket.OPEN && socket.send(JSON.stringify({ type, requestId: crypto.randomUUID(), payload }))
   const subscribe = () => send('room.subscribe', { roomId, afterSequence: handlers.sequence() })
   const reconnect = (retryAfterMs = 0) => {
@@ -255,9 +267,20 @@ export function connectChatRoom(roomId: string, userId: string, handlers: {
               break
             case 'room.subscribed':
               if (payload.roomId !== roomId) invalid()
+              subscribed = true
               attempts = 0
               handlers.status(true, '')
               break
+            case 'message.ack': {
+              const request = typeof frame.requestId === 'string' ? pending.get(frame.requestId) : undefined
+              if (!request) break
+              const message = parseChatMessage(payload.message)
+              if (message.roomId !== roomId || message.sender.id !== userId || message.type !== 'TEXT' || message.clientMessageId !== request.clientMessageId || message.content !== request.content) invalid()
+              pending.delete(frame.requestId as string)
+              clearTimeout(request.timer)
+              request.resolve(message)
+              break
+            }
             case 'message.created':
             case 'message.updated': {
               const message = parseChatMessage(payload.message)
@@ -272,11 +295,19 @@ export function connectChatRoom(roomId: string, userId: string, handlers: {
               break
             case 'room.resync_required':
               if (payload.roomId !== roomId || typeof payload.subscriptionActive !== 'boolean') invalid()
+              subscribed = payload.subscriptionActive
               await handlers.resync(payload.subscriptionActive)
               if (!payload.subscriptionActive && !stopped && socket === current) subscribe()
               break
             case 'error':
               if (typeof payload.retryable !== 'boolean') invalid()
+              if (typeof frame.requestId === 'string' && pending.has(frame.requestId)) {
+                const request = pending.get(frame.requestId)!
+                pending.delete(frame.requestId)
+                clearTimeout(request.timer)
+                request.reject(new BackendApiError(0, text(payload.code), text(payload.message)))
+                break
+              }
               handlers.status(false, text(payload.message))
               retryAfterMs = payload.retryAfterSeconds == null ? 0 : integer(payload.retryAfterSeconds) * 1000
               // Do not retry permanent failures or overflow the browser's timer into an immediate retry.
@@ -289,7 +320,11 @@ export function connectChatRoom(roomId: string, userId: string, handlers: {
         })
       }
       current.onclose = ({ code }) => {
-        if (stopped || socket !== current) return
+        if (socket !== current) return
+        subscribed = false
+        const unauthorized = [4401, 4403, 1008].includes(code)
+        rejectPending(new BackendApiError(unauthorized ? 401 : 0, unauthorized ? 'SESSION_EXPIRED' : 'WS_DISCONNECTED', unauthorized ? '다시 로그인해 주세요.' : '실시간 연결이 끊겼어요.'))
+        if (stopped) return
         if ([4401, 4403, 1008].includes(code)) {
           handlers.status(false, '실시간 채팅 인증이 만료됐어요. 다시 로그인해 주세요.')
           return
@@ -304,10 +339,33 @@ export function connectChatRoom(roomId: string, userId: string, handlers: {
     }
   }
   void connect()
-  return () => {
-    stopped = true
-    controller.abort()
-    clearTimeout(retry)
-    socket?.close(1000, 'ROOM_LEFT')
+  return {
+    sendMessage(content: string, clientMessageId: string): Promise<ChatMessage> | null {
+      if (stopped || !subscribed || socket?.readyState !== WebSocket.OPEN) return null
+      const trimmed = messageContent(content)
+      const requestId = crypto.randomUUID()
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          pending.delete(requestId)
+          reject(new BackendApiError(0, 'WS_TIMEOUT', '전송 확인이 늦어지고 있어요.'))
+          socket?.close(1000, 'ACK_TIMEOUT')
+        }, 5000)
+        pending.set(requestId, { clientMessageId, content: trimmed, resolve, reject, timer })
+        try { socket!.send(JSON.stringify({ type: 'message.send', requestId, payload: { roomId, clientMessageId, content: trimmed } })) }
+        catch {
+          pending.delete(requestId)
+          clearTimeout(timer)
+          reject(new BackendApiError(0, 'WS_DISCONNECTED', '실시간 연결이 끊겼어요.'))
+        }
+      })
+    },
+    close() {
+      stopped = true
+      subscribed = false
+      controller.abort()
+      clearTimeout(retry)
+      rejectPending(new BackendApiError(0, 'WS_DISCONNECTED', '채팅방 연결을 닫았어요.'))
+      socket?.close(1000, 'ROOM_LEFT')
+    },
   }
 }

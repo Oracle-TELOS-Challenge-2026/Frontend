@@ -230,6 +230,12 @@
   color: var(--primary);
 }
 
+.chat-message.pending .chat-message-content { opacity: .7; }
+.chat-delivery { max-width: 110px; color: var(--muted); font-size: 11px; }
+.chat-delivery small { font-size: inherit; }
+.chat-delivery .chat-delivery-error { color: var(--primary-dark); }
+.chat-delivery .account-text-button { font-size: 11px; }
+
 .chat-proposal-fields {
   border: 0;
   padding: 0;
