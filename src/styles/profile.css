@@ -46,6 +46,14 @@
 .push-debug { margin-top: 18px; font-size: 12px; line-height: 1.7; }
 .push-debug summary { cursor: pointer; }
 .push-debug code { display: block; overflow-wrap: anywhere; user-select: all; }
+.backend-connection { display: grid; gap: 22px; }
+.backend-connection .account-heading, .backend-connection > .account-notice { margin: 0; }
+.backend-connection .account-card h2 { margin: 0 0 12px; font-size: 16px; }
+.backend-origin, .backend-path { overflow-wrap: anywhere; font-size: 12px; line-height: 1.7; }
+.backend-origin a { text-decoration: underline; }
+.backend-connection details, .backend-connection .account-error { margin-top: 14px; }
+.backend-connection summary { cursor: pointer; font-size: 13px; }
+.backend-connection pre { max-height: 360px; overflow: auto; font-size: 11px; line-height: 1.7; }
 @media (max-width: 370px) {
   .registration-steps li { gap: 4px; font-size: 11px; }
   .account-card { padding: 18px; }

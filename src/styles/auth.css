@@ -146,6 +146,8 @@
 
 .login-bottom {
   margin-top: 13px;
+  display: grid;
+  gap: 12px;
 }
 
 .login-start {
@@ -159,6 +161,12 @@
   color: var(--muted);
   margin-top: 14px;
 }
+
+.login-bottom > .account-error { color: var(--primary-dark); text-align: left; font-size: 13px; }
+.kakao-login { background: #fee500; color: #191919; }
+.login-demo { justify-content: center; min-height: 44px; }
+.session-profile h2 { margin: 0; font-size: 18px; }
+.session-profile dd { overflow-wrap: anywhere; }
 
 .role-page {
   min-height: 100%;

@@ -18,6 +18,8 @@ export function ProfilePage({ role, shop, preferences, push }: { role: Role; sho
       <p className="account-footnote">{preferences ? '저장한 내용은 언제든 수정하거나 지울 수 있어요.' : '생각나는 것부터 가볍게 적어도 좋아요.'}</p>
     </section>}
     <PushSettings push={push} />
+    <Link className="account-text-button" to="/login">카카오 계정 · 로그인 / 로그아웃<Icon name="chevron-right" size={16} /></Link>
+    <details className="push-debug"><summary>백엔드 연결 점검</summary><p>공개 API의 실제 응답과 미구현 상태를 확인할 수 있어요.</p><Link className="account-text-button" to="/backend">서버 연결 확인<Icon name="chevron-right" size={16} /></Link></details>
     <div className="account-notice"><Icon name={role === 'owner' ? 'store' : 'sparkle'} size={20} /><div><strong>{role === 'owner' ? '이 브라우저에 저장된 가게예요' : 'AI 취향 분석 · 추천 반영 준비 중'}</strong><p>{role === 'owner' ? '등록 정보는 이 브라우저에만 저장돼요. 실제 고객에게 가게가 공개되지는 않아요.' : '지금은 입력한 내용을 이 브라우저에 저장해요. AI 분석과 맞춤 추천에는 아직 반영되지 않아요.'}</p></div></div>
   </div>
 }

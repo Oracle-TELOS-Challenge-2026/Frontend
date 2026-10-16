@@ -5,7 +5,6 @@ import { AppLayout } from './components/AppLayout'
 import { useAccount } from './hooks/useAccount'
 import { useDemo } from './hooks/useDemo'
 import { usePushNotifications } from './hooks/usePushNotifications'
-import { Splash } from './pages/auth/SplashPage'
 import { Login } from './pages/auth/LoginPage'
 import { RoleSelection } from './pages/auth/RoleSelectionPage'
 import { CustomerHome } from './pages/customer/HomePage'
@@ -19,6 +18,7 @@ import { ChatPage } from './pages/ChatPage'
 import { Registration } from './pages/owner/RegistrationPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { PreferencesPage } from './pages/PreferencesPage'
+import { BackendConnectionPage } from './pages/BackendConnectionPage'
 import { accountStartPath } from './lib/account'
 import { CUSTOMER_ID } from './model'
 import type { AccountState, Role } from './types'
@@ -34,6 +34,14 @@ function RoleGate({ role, account }: { role: Role; account: AccountState }) {
 }
 
 function App() {
+  const { pathname } = useLocation()
+  if (pathname === '/' || pathname.replace(/\/+$/, '') === '/login') {
+    return <AppLayout toast={null} hasUnread={false} onSwitch={() => {}}><Login /></AppLayout>
+  }
+  return <DemoApp />
+}
+
+function DemoApp() {
   const { account, error, selectRole, registerShop, savePreferences } = useAccount()
   const { props, toast, notify } = useDemo(account.shop)
   const push = usePushNotifications(notify)
@@ -70,8 +78,7 @@ function App() {
 
   return <AppLayout toast={showStorageError ? { text: error, id: 0 } : toast} hasUnread={hasUnread} onSwitch={switchRole}>
     <Routes>
-      <Route path="/" element={<Splash destination={startPath} />} />
-      <Route path="/login" element={account.role ? <Navigate to={startPath} replace /> : <Login />} />
+      <Route path="/backend" element={<BackendConnectionPage returnTo={startPath} />} />
       <Route path="/choose-role" element={account.role ? <Navigate to={startPath} replace /> : <RoleSelection onSelect={enterRole} error={error} />} />
       <Route path="/owner/register" element={account.role === 'owner' && !account.shop ? <Registration error={error} onCancel={() => enterRole('customer')} onRegister={(input) => { if (!registerShop(input)) return false; navigate('/owner', { replace: true }); return true }} /> : <Navigate to={startPath} replace />} />
       <Route element={<RoleGate role="customer" account={account} />}>
