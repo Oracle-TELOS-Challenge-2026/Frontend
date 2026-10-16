@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
 import { Icon } from '../../components/Icon'
-import { dateLabel, DEMO_DAY, OWNER_SHOP_ID, timeLabel } from '../../model'
+import { dateLabel, DEMO_DAY, timeLabel } from '../../model'
 import type { DemoProps } from '../../model'
 
-export function OwnerChats({ conversations, onReadConversation }: DemoProps) {
-  const chats = conversations.filter((item) => item.shopId === OWNER_SHOP_ID).sort((a, b) => Date.parse(b.messages.at(-1)?.sentAt ?? '1970-01-01') - Date.parse(a.messages.at(-1)?.sentAt ?? '1970-01-01'))
+export function OwnerChats({ conversations, ownerShop, onReadConversation }: DemoProps) {
+  const chats = conversations.filter((item) => item.shopId === ownerShop?.id).sort((a, b) => Date.parse(b.messages.at(-1)?.sentAt ?? '1970-01-01') - Date.parse(a.messages.at(-1)?.sentAt ?? '1970-01-01'))
   return <div className="page owner-page">
     <p className="eyebrow">설레는 만남의 시작</p><h1 className="page-heading">고객 채팅</h1>
     <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>궁금한 시술부터 예약 이야기까지, 편하게 나눠요.</p>

@@ -1,0 +1,47 @@
+.account-page-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 25px; }
+.account-heading { margin-bottom: 28px; }
+.account-heading .page-heading { margin: 7px 0 10px; }
+.account-heading h1:focus { outline: none; }
+.account-text-button { display: inline-flex; align-items: center; gap: 4px; padding: 8px 0; background: transparent; color: var(--muted); font-size: 12px; }
+.registration-steps { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 28px; padding: 0; list-style: none; }
+.registration-steps li { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.registration-steps li > span { display: grid; width: 25px; height: 25px; place-items: center; border-radius: 50%; background: var(--line); font-size: 11px; font-weight: 700; }
+.registration-steps .active { color: var(--primary-dark); }
+.registration-steps .active > span { background: var(--primary); color: white; }
+.registration-steps li[aria-current="step"] { font-weight: 750; }
+.account-form { display: grid; gap: 22px; }
+.account-field { display: grid; gap: 9px; }
+.account-field > label { font-size: 13px; font-weight: 750; }
+.account-field > label > span { margin-left: 3px; color: var(--muted); font-weight: 500; }
+.account-field input, .account-field select, .account-field textarea { width: 100%; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); color: var(--ink); font-size: 14px; }
+.account-field textarea { min-height: 210px; line-height: 1.75; resize: vertical; }
+.account-field input::placeholder, .account-field textarea::placeholder { color: var(--muted); }
+.account-field small { color: var(--muted); font-size: 11px; line-height: 1.65; }
+.account-input-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.account-input-footer .account-text-button { padding: 4px 0; }
+.account-form-actions { display: flex; gap: 10px; }
+.account-form-actions > .button { flex: 1; }
+.account-form-actions > .secondary { flex: 0 0 90px; }
+.account-footnote { color: var(--muted); font-size: 11px; line-height: 1.75; text-align: center; }
+.account-card { padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); }
+.account-card-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.account-card-heading > div { min-width: 0; }
+.account-card-heading h2 { margin: 4px 0 0; font-size: 17px; font-weight: 750; overflow-wrap: anywhere; }
+.account-avatar { display: grid; width: 46px; height: 46px; flex: 0 0 auto; place-items: center; border-radius: 15px; background: var(--soft-surface); color: var(--primary); }
+.account-details { display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 17px 12px; margin: 0; padding-top: 19px; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.7; }
+.account-details dt { color: var(--muted); }
+.account-details dd { margin: 0; overflow-wrap: anywhere; }
+.account-card > .button { display: flex; margin-top: 24px; }
+.account-card > .account-footnote { margin-top: 13px; }
+.account-preference-copy { color: var(--ink); font-size: 14px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.account-notice { display: flex; align-items: flex-start; gap: 11px; padding: 17px; border-radius: 15px; background: var(--soft-surface); color: var(--primary-dark); }
+.account-page > .account-notice { margin-top: 22px; }
+.account-notice > svg { margin-top: 1px; }
+.account-notice strong { display: block; font-size: 12px; font-weight: 700; line-height: 1.6; }
+.account-notice p { margin-top: 5px; font-size: 11px; line-height: 1.8; }
+.account-error { color: var(--accent-dark); font-size: 13px; line-height: 1.7; }
+@media (max-width: 370px) {
+  .registration-steps li { gap: 4px; font-size: 11px; }
+  .account-card { padding: 18px; }
+  .account-heading .page-heading { font-size: 23px; }
+}

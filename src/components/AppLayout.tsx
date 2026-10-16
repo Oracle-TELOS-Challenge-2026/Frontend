@@ -5,12 +5,13 @@ import { Brand } from './Brand'
 import { BottomNav } from './BottomNav'
 import { DesktopIntro } from './DesktopIntro'
 import { Icon } from './Icon'
+import { AccountActions } from './AccountActions'
 
-export function AppLayout({ children, toast, hasUnread }: { children: ReactNode; toast: { text: string; id: number } | null; hasUnread: boolean }) {
+export function AppLayout({ children, toast, hasUnread, onSwitch }: { children: ReactNode; toast: { text: string; id: number } | null; hasUnread: boolean; onSwitch: () => void }) {
   const location = useLocation()
   const content = useRef<HTMLDivElement>(null)
   const role = location.pathname.startsWith('/owner') ? 'owner' : 'customer'
-  const isApp = location.pathname.startsWith('/customer') || location.pathname.startsWith('/owner')
+  const isApp = (location.pathname.startsWith('/customer') || location.pathname.startsWith('/owner')) && location.pathname !== '/owner/register'
   const isChat = location.pathname.includes('/chat/')
   const isCustomerMap = location.pathname.replace(/\/$/, '') === '/customer'
   useEffect(() => { content.current?.scrollTo(0, 0) }, [location.pathname])
@@ -20,8 +21,7 @@ export function AppLayout({ children, toast, hasUnread }: { children: ReactNode;
     <main className={`app-frame ${isApp ? 'in-app' : 'auth-frame'}`}>
       {isApp && !isCustomerMap && <header className="app-header">
         <Link to={`/${role}`} aria-label="홈으로"><Brand /></Link>
-        {role === 'owner' && <span className="header-role">사장님</span>}
-        <Link to="/choose-role" className="role-switch"><Icon name="user" size={15} />역할 변경</Link>
+        <AccountActions role={role} onSwitch={onSwitch} />
       </header>}
       <div ref={content} className={`app-content ${isChat ? 'chat-content' : ''}`}>{children}</div>
       {isApp && !isChat && <BottomNav role={role} hasUnread={hasUnread} />}

@@ -205,12 +205,31 @@ textarea {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-left: auto;
+  min-height: 40px;
   font-size: 11px;
   color: var(--muted);
   background: var(--soft-surface);
   border-radius: 20px;
   padding: 9px 10px;
+  white-space: nowrap;
+}
+
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+@media (max-width: 380px) {
+  .app-header .brand-english,
+  .customer-home-heading .brand-english {
+    display: none;
+  }
+
+  .account-actions .role-switch {
+    padding-inline: 8px;
+  }
 }
 
 .bottom-nav {

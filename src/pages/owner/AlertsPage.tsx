@@ -1,18 +1,18 @@
 import { useState } from 'react'
 import { Icon } from '../../components/Icon'
 import { PublishDialog } from '../../components/owner/PublishDialog'
-import { dateLabel, money, OWNER_SHOP_ID, timeLabel } from '../../model'
+import { dateLabel, money, timeLabel } from '../../model'
 import type { Cancellation, DemoProps } from '../../model'
 
-export function OwnerAlerts({ cancellations, onPublish }: DemoProps) {
+export function OwnerAlerts({ cancellations, ownerShop, onPublish }: DemoProps) {
   const [selected, setSelected] = useState<Cancellation | null>(null)
-  const alerts = cancellations.filter((item) => item.shopId === OWNER_SHOP_ID).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const alerts = cancellations.filter((item) => item.shopId === ownerShop?.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   const available = alerts.filter((item) => !item.publishedAt).length
 
   return <div className="page owner-page">
     <p className="eyebrow">빈 시간도, 새로운 기회로</p>
     <h1 className="page-heading">빈자리 알림</h1>
-    <div className="owner-info"><Icon name="sparkle" /><div><strong>{available > 0 ? `${available}개의 빈자리가 기다리고 있어요` : '빈자리를 모두 알렸어요'}</strong><p>취소된 시간에 특별한 가격을 더해보세요.<br />이 시간을 기다리던 고객과 만날 수 있어요.</p></div></div>
+    <div className="owner-info"><Icon name="sparkle" /><div><strong>{available > 0 ? `${available}개의 빈자리가 기다리고 있어요` : alerts.length > 0 ? '빈자리를 모두 알렸어요' : '아직 빈자리 알림이 없어요'}</strong><p>취소된 시간에 특별한 가격을 더해보세요.<br />이 시간을 기다리던 고객과 만날 수 있어요.</p></div></div>
     <div className="owner-list-heading"><h2>취소 · 노쇼 내역 <span>{alerts.length}</span></h2><span>최근 접수순</span></div>
     <div className="owner-alert-list">
       {alerts.map((alert) => <article className="owner-alert-card" key={alert.id}>

@@ -8,7 +8,7 @@ export function ChatPage(props: DemoProps & { role: Role }) {
   const { id } = useParams()
   const [message, setMessage] = useState('')
   const messagesEnd = useRef<HTMLDivElement>(null)
-  const conversation = props.conversations.find((item) => props.role === 'customer' ? item.shopId === id && item.customerId === CUSTOMER_ID : item.id === id)
+  const conversation = props.conversations.find((item) => props.role === 'customer' ? item.shopId === id && item.customerId === CUSTOMER_ID : item.id === id && item.shopId === props.ownerShop?.id)
   const shop = props.shops.find((item) => item.id === conversation?.shopId)
   const messageCount = conversation?.messages.length
   const conversationId = conversation?.id

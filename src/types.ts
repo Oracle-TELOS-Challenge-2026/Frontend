@@ -1,6 +1,26 @@
 export type Role = 'customer' | 'owner'
 export type DiscountMode = 'percent' | 'amount'
 
+export interface ShopRegistration {
+  name: string
+  category: string
+  address: string
+  phone: string
+  service: string
+  originalPrice: number
+  duration: number
+}
+
+export interface RegisteredShop extends ShopRegistration {
+  id: string
+}
+
+export interface AccountState {
+  role: Role | null
+  shop: RegisteredShop | null
+  preferences: string
+}
+
 export interface Slot {
   startsAt: string
   service: string
@@ -83,6 +103,7 @@ export interface DemoState {
 }
 
 export interface DemoProps extends DemoState {
+  ownerShop: RegisteredShop | null
   onReserve: (shopId: string, startsAt: string) => boolean
   onWaitlist: (shopId: string, preferredDate: string, preferredTime: string) => boolean
   onUpdateWaitlist: (id: string, preferredDate: string, preferredTime: string) => boolean

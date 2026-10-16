@@ -1,17 +1,16 @@
 import { useState } from 'react'
 import { Icon } from '../../components/Icon'
 import { OwnerSchedule } from '../../components/owner/Schedule'
-import { dateLabel, DEMO_DAY, OWNER_SHOP_ID } from '../../model'
+import { dateLabel, DEMO_DAY } from '../../model'
 import type { DemoProps } from '../../model'
 
 const dayAt = (day: string, offset: number) => new Date(Date.parse(`${day}T00:00:00Z`) + offset * 86400000).toISOString().slice(0, 10)
 const demoWeekStart = dayAt(DEMO_DAY, -((new Date(`${DEMO_DAY}T00:00:00Z`).getUTCDay() + 6) % 7))
 
-export function OwnerHome({ reservations, shops }: DemoProps) {
+export function OwnerHome({ reservations, ownerShop }: DemoProps) {
   const [selectedDay, setSelectedDay] = useState(DEMO_DAY)
   const [weekStart, setWeekStart] = useState(demoWeekStart)
-  const shop = shops.find((item) => item.id === OWNER_SHOP_ID)
-  const bookings = reservations.filter((item) => item.shopId === OWNER_SHOP_ID && item.startsAt.startsWith(selectedDay)).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+  const bookings = reservations.filter((item) => item.shopId === ownerShop?.id && item.startsAt.startsWith(selectedDay)).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
   const confirmed = bookings.filter((item) => item.status === 'confirmed')
 
   function moveWeek(offset: number) {
@@ -22,7 +21,7 @@ export function OwnerHome({ reservations, shops }: DemoProps) {
   return (
     <div className="page owner-page">
       <div className="owner-greeting">
-        <div><p className="eyebrow">{shop?.name ?? '내 가게'} · 사장님</p><h1>오늘도 반가운 만남을<br />준비해 볼까요?</h1></div>
+        <div><p className="eyebrow">{ownerShop?.name ?? '내 가게'} · 사장님</p><h1>오늘도 반가운 만남을<br />준비해 볼까요?</h1></div>
         <span className="owner-shop-mark" aria-hidden="true"><Icon name="store" /></span>
       </div>
       <div className="owner-summary">
