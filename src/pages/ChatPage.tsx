@@ -146,6 +146,8 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
         const previous = conversation.messages[index - 1]
         const grouped = continuesMessageGroup(item, conversation.messages[index + 1])
         const mine = item.sender.id === userId
+        // shortcut: 초기 상대 읽음 위치가 API에 추가되면 재접속 시의 미확인 표시를 해소한다.
+        const unread = mine && item.sequence > (conversation.peerReadSequence ?? 0)
         const proposal = item.bookingProposal
         return <Fragment key={item.id}>
           {(!previous || todayInSeoul(new Date(previous.createdAt)) !== todayInSeoul(new Date(item.createdAt))) && <span className="chat-date">{dateLabel(item.createdAt)}</span>}
@@ -158,7 +160,7 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
               {proposal.status === 'CONFIRMED' && <><small>이 제안으로 예약을 확정했어요. 이후 취소·완료 상태는 예약 내역에서 확인해 주세요.</small><Link className="button secondary small" to={role === 'customer' ? '/customer/reservations' : '/owner'}>예약 내역 보기</Link></>}
               {proposal.status === 'REVIEW_REQUIRED' && <small>고객 요청이 변경됐어요. 사장님의 새 제안을 기다려 주세요.</small>}
             </section> : <p>{item.content}</p>}</div>
-            {!grouped && <span className="chat-message-meta">{mine && conversation.peerReadSequence !== undefined && item.sequence <= conversation.peerReadSequence && <small>읽음</small>}<time dateTime={item.createdAt}>{timeLabel(item.createdAt)}</time></span>}
+            {(!grouped || unread) && <span className="chat-message-meta">{unread && <small className="chat-unread" aria-label="상대방 읽음 미확인">1</small>}{!grouped && <time dateTime={item.createdAt}>{timeLabel(item.createdAt)}</time>}</span>}
           </div>
         </Fragment>
       })}<div ref={messagesEnd} />
