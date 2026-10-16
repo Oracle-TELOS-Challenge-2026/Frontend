@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createDemoState, publishCancellation, removeReservationHistory, reserveSlot, validWaitPreference } from '../model'
 import type { DemoProps, RegisteredShop } from '../model'
 
 export function useDemo(ownerShop: RegisteredShop | null) {
   const [state, setState] = useState(createDemoState)
   const [toast, setToast] = useState<{ text: string; id: number } | null>(null)
-  const notify = (text: string) => setToast({ text, id: Date.now() })
+  const notify = useCallback((text: string) => setToast({ text, id: Date.now() }), [])
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(null), 3500); return () => window.clearTimeout(timer) }, [toast])
   const props: DemoProps = {
     ...state,
@@ -28,5 +28,5 @@ export function useDemo(ownerShop: RegisteredShop | null) {
     onSendMessage: (conversationId, body, sender) => { if (!body.trim() || body.trim().length > 2000) return; setState((current) => ({ ...current, conversations: current.conversations.map((item) => item.id === conversationId && (sender === 'customer' || item.shopId === ownerShop?.id) ? { ...item, unread: sender === 'customer' ? item.unread + 1 : item.unread, messages: [...item.messages, { id: crypto.randomUUID(), sender, body: body.trim(), sentAt: new Date().toISOString() }] } : item) })) },
     onReadConversation: (id) => setState((current) => ({ ...current, conversations: current.conversations.map((item) => item.id === id && item.shopId === ownerShop?.id && item.unread ? { ...item, unread: 0 } : item) })),
   }
-  return { props, toast }
+  return { props, toast, notify }
 }

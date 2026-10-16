@@ -28,7 +28,9 @@ Tailwind는 Vite 플러그인과 `src/index.css`에서 연결하고, 라우트�
 - 대기 취소와 지난 예약내역 삭제는 확인 모달에서 삭제를 확정해야 처리합니다. 지난 예약은 고객 목록에서만 숨기며 사장님 기록과 예약 시간 점유는 유지합니다. 새로고침하면 삭제한 시연 내역도 초기화됩니다.
 - 할인 빈자리의 고객 지도·대기내역 반영과 중복 예약 방지 로직은 유지합니다. 신규 등록 가게에는 예약·취소 샘플이 없으므로 서버 연동 전 사장님 화면은 빈 상태로 시작합니다.
 - 고객 홈은 Kakao Maps Web SDK를 사용합니다. 지도 중심 화면에서 가격 핀을 누르면 하단에 가게 요약이 나오고, 요약 카드를 누르면 상세로 이동합니다. 검색·카테고리를 유지하며 목록 보기와 지도 보기를 전환하고, 시트 손잡이를 누르거나 위아래로 끌어 목록을 펼치고 접을 수 있습니다. 마지막 검색 영역에서 가로·세로 폭의 25%를 넘게 이동하거나 확대 수준을 바꾸면 나타나는 **이 지역 재검색** 버튼으로 현재 지도 영역의 샘플을 다시 검색합니다. 검색어·카테고리는 유지됩니다. 업종은 Lucide 라인 아이콘으로, 특가는 굵은 코랄색 테두리로 표시합니다. 키가 없거나 지도 로딩에 실패해도 가게 목록은 사용할 수 있습니다.
-- 기준 위치는 **청년취업사관학교 동작캠퍼스(서울 동작구 노량진로 10)**입니다. 중심 좌표 37.51243, 126.92727에서 반경 5km 안에 업종별 5곳씩 총 20개 가상 가게를 배치했습니다. 거리는 캠퍼스 기준 직선거리이며, 가게·주소·좌표·사진·예약 정보는 시연용입니다. 검색은 현재 영역의 샘플 가게를 필터링하며 카카오 장소 검색, 카카오 인증, 서버 저장, 실시간 채팅, 푸시 알림은 아직 연결하지 않았습니다.
+- 기준 위치는 **청년취업사관학교 동작캠퍼스(서울 동작구 노량진로 10)**입니다. 중심 좌표 37.51243, 126.92727에서 반경 5km 안에 업종별 5곳씩 총 20개 가상 가게를 배치했습니다. 거리는 캠퍼스 기준 직선거리이며, 가게·주소·좌표·사진·예약 정보는 시연용입니다. 검색은 현재 영역의 샘플 가게를 필터링하며 카카오 장소 검색, 카카오 인증, 서버 저장, 실시간 채팅은 아직 연결하지 않았습니다.
+
+- Firebase 설정 후 마이페이지에서 **알림 켜기/끄기**로 이 브라우저의 FCM 수신을 관리합니다. 화면을 보고 있으면 기존 토스트, 백그라운드에서는 시스템 알림을 표시합니다. **로그인 사용자와 수신 기기를 연결하는 API 및 빈자리 조건 매칭·자동 발송은 미연결**이므로, 대기 신청만으로 실제 푸시가 발송되지는 않습니다.
 
 - **내 위치** 버튼을 누르면 브라우저 위치 권한을 요청합니다. 허용하면 코랄 점으로 현재 위치를 표시하고, 화면을 떠날 때까지 위치를 갱신합니다. 최초 수신과 버튼 재클릭 때만 지도를 내 위치로 옮기며, 지도를 둘러보는 동안에는 점만 갱신합니다. 거부·시간 초과·수신 불가 시 안내를 표시합니다. 실제 위치가 샘플 지역 밖이면 가게가 없을 수 있습니다. 위치 기능은 HTTPS 또는 localhost에서 사용합니다.
 
@@ -104,6 +106,49 @@ Vercel에서는 같은 환경변수를 Production에 등록하고 다시 배포�
 현재 공식 안내상 개발자 계정에서 **처음 카카오맵을 활성화한 앱에만 무료 쿼터**가 제공됩니다. 추가 활성화 앱과 무료 쿼터 초과 사용은 별도 유료 설정 대상이므로, 활성화 전에 콘솔의 무료 쿼터 적용 앱을 확인합니다.
 설정 출처: [Web SDK 시작하기](https://apis.map.kakao.com/web/guide/), [카카오맵 사용 방법·무료 쿼터](https://developers.kakao.com/docs/ko/kakaomap/common).
 
+## Firebase 푸시 알림 설정
+
+1. [Firebase Console](https://console.firebase.google.com/)에서 프로젝트를 만들거나 선택하고 **프로젝트 설정 → 일반 → 내 앱 → 웹 앱 추가(`</>`)**로 앱을 등록합니다. 웹 앱의 Firebase 설정에서 `apiKey`, `projectId`, `messagingSenderId`, `appId`를 확인합니다. Firebase Auth·Firestore·Firebase Hosting은 이 수신 기능에 필요하지 않습니다.
+2. **프로젝트 설정 → Cloud Messaging → 웹 구성 → 웹 푸시 인증서 → 키 쌍 생성**에서 VAPID **공개키**를 발급합니다.
+3. 같은 프로젝트의 [Google Cloud FCM Registration API](https://console.cloud.google.com/apis/library/fcmregistrations.googleapis.com)가 사용 설정되어 있는지 확인합니다. 새 프로젝트에서는 기본으로 활성화됩니다.
+4. 기존 `.env.local`의 카카오맵 설정을 유지하고 아래 값을 추가한 뒤 개발 서버를 다시 실행합니다.
+
+```dotenv
+VITE_FIREBASE_API_KEY=웹앱의_apiKey
+VITE_FIREBASE_PROJECT_ID=웹앱의_projectId
+VITE_FIREBASE_MESSAGING_SENDER_ID=웹앱의_messagingSenderId
+VITE_FIREBASE_APP_ID=웹앱의_appId
+VITE_FIREBASE_VAPID_KEY=웹_푸시_인증서의_공개키
+```
+
+이 값들은 브라우저용 공개 설정입니다. **서비스 계정 JSON·private_key·VAPID 비공개키는 프런트에 넣지 않습니다.** `.env.local`은 Git에 포함하지 않습니다. Vercel의 Environment Variables에도 같은 5개 값을 Production에 등록하고 **다시 배포**합니다. Preview에서 테스트하려면 해당 환경에도 등록합니다. Vite 환경변수는 빌드 시 반영됩니다.
+
+설정 출처: [Firebase 웹 앱 등록](https://firebase.google.com/docs/web/setup#register-app), [FCM 웹 시작하기](https://firebase.google.com/docs/cloud-messaging/web/get-started).
+
+### 수신 테스트
+
+1. `pnpm dev` 후 일반 Chrome 창에서 `http://localhost:5173`을 엽니다. 배포 환경에서는 HTTPS를 사용합니다.
+2. 고객 또는 사장님 **마이페이지 → 알림 켜기**를 누르고 브라우저 알림 권한을 허용합니다. 권한을 차단한 경우 주소창의 사이트 설정에서 알림 권한을 변경합니다.
+3. 마이페이지의 **Firebase 수신 테스트 → 수신 ID 복사**로 **Firebase Installation ID(FID)**를 복사합니다. 로컬과 배포 사이트 모두 해당 브라우저의 수신 ID를 확인할 수 있습니다.
+4. Firebase Console의 **Messaging → 캠페인 만들기 → Firebase 알림 메시지**에서 제목·본문을 입력하고 **테스트 메시지 전송**을 선택합니다. **Firebase Installation ID 또는 FCM 등록 토큰 추가** 입력란에 복사한 FID를 넣고 테스트를 전송합니다. [공식 콘솔 테스트 절차](https://firebase.google.com/docs/cloud-messaging/flutter/get-started#send_a_test_notification_message)
+5. 앱 탭을 보고 있으면 토스트, 다른 탭을 보고 있으면 시스템 알림이 도착하는지 각각 확인합니다. 시스템 알림이 보이지 않으면 OS의 Chrome 알림 허용 상태와 집중 모드도 확인합니다.
+
+Firebase JS SDK 13의 `register`/`onRegistered`/`unregister`로 등록을 관리하며, 구형 `getToken` 방식과 혼용하지 않습니다. `public/firebase-messaging-sw.js`는 같은 버전의 compat SDK를 사용하며 공개 설정을 등록 URL에서 받으므로 파일에 키를 직접 복사할 필요가 없습니다. 알림 끄기는 이 브라우저의 FCM 등록을 해제하며, 브라우저 자체의 알림 권한은 사이트 설정에서 관리합니다.
+
+### 백엔드 연결 시 계약
+
+실제 로그인 연결 후에는 `onRegistered`로 받은 FID를 **인증된 사용자**에 연결하는 등록·갱신 API와 로그아웃·알림 해제 시 연결을 삭제하는 API가 필요합니다. 현재 프런트에는 이 API 요청이 없고, 체험 계정을 서버 사용자로 등록하지 않습니다. 백엔드는 FID 대상을 지원하는 FCM 발송 API를 사용해 빈자리 저장·조건 매칭·발송 기록·재시도를 처리해야 합니다.
+
+| 필드 | 용도 |
+| --- | --- |
+| `notification.title`, `notification.body` | 알림 제목·본문 |
+| `data.url` | 앱 내부 이동 경로. 예: `/customer/waitlist` |
+| `data.shopId` | `url`이 없을 때 `/customer/shops/{shopId}`로 이동 |
+| `data.notificationId` | 알림 식별자. 문자열로 전달 |
+| `webpush.fcm_options.link` | 배포 앱과 동일한 origin의 전체 HTTPS URL |
+
+`data` 값은 문자열로 전송합니다. `notification`이 있으면 백그라운드 표시를 FCM SDK에 맡겨 중복 알림을 피합니다. 데이터 전용 메시지는 `data.title`·`data.body`를 사용해 서비스 워커에서 표시합니다. 클릭 이동은 같은 origin만 허용하며, 새로고침 후에도 접근 가능한 앱 경로를 전달해야 합니다. [FCM 웹 수신·클릭 처리](https://firebase.google.com/docs/cloud-messaging/web/receive-messages)
+
 ## 배포 전 확인
 
 ```sh
@@ -136,6 +181,7 @@ GitHub에 이 저장소를 푸시한 뒤 Vercel의 Add New → Project에서 가
 
 `pnpm-lock.yaml`을 커밋해 Vercel이 pnpm을 자동 감지하도록 합니다.
 카카오맵 표시는 위의 `VITE_KAKAO_MAP_APP_KEY` 환경변수와 도메인 등록이 필요합니다.
+푸시 수신은 위의 Firebase 환경변수 5개와 사용자의 브라우저 알림 허용이 필요합니다.
 `vercel.json`의 rewrite는 하위 경로 직접 접속과 새로고침을 React Router로 연결합니다.
 API 연결 시 필요한 공개 설정은 Vercel 프로젝트의 Environment Variables에 등록합니다.
 `VITE_` 변수는 브라우저에 공개되므로 비밀 인증키나 DB 비밀번호를 넣지 않습니다. 카카오맵에는 브라우저 공개용 JavaScript 키만 사용합니다.

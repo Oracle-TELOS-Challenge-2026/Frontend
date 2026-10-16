@@ -40,6 +40,12 @@
 .account-notice strong { display: block; font-size: 12px; font-weight: 700; line-height: 1.6; }
 .account-notice p { margin-top: 5px; font-size: 11px; line-height: 1.8; }
 .account-error { color: var(--accent-dark); font-size: 13px; line-height: 1.7; }
+.push-settings { margin-top: 22px; }
+.push-settings > .account-form-actions { margin-top: 18px; }
+.push-settings .account-form-actions > .secondary { flex: 1; }
+.push-debug { margin-top: 18px; font-size: 12px; line-height: 1.7; }
+.push-debug summary { cursor: pointer; }
+.push-debug code { display: block; overflow-wrap: anywhere; user-select: all; }
 @media (max-width: 370px) {
   .registration-steps li { gap: 4px; font-size: 11px; }
   .account-card { padding: 18px; }

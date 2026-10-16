@@ -8,6 +8,11 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores(['dist']),
   {
+    files: ['public/firebase-messaging-sw.js'],
+    extends: [js.configs.recommended],
+    languageOptions: { globals: { ...globals.serviceworker, firebase: 'readonly' } },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     extends: [
       js.configs.recommended,

@@ -1,7 +1,9 @@
+import { useEffect } from 'react'
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { useAccount } from './hooks/useAccount'
 import { useDemo } from './hooks/useDemo'
+import { usePushNotifications } from './hooks/usePushNotifications'
 import { Splash } from './pages/auth/SplashPage'
 import { Login } from './pages/auth/LoginPage'
 import { RoleSelection } from './pages/auth/RoleSelectionPage'
@@ -31,12 +33,25 @@ function RoleGate({ role, account }: { role: Role; account: AccountState }) {
 
 function App() {
   const { account, error, selectRole, registerShop, savePreferences } = useAccount()
-  const { props, toast } = useDemo(account.shop)
+  const { props, toast, notify } = useDemo(account.shop)
+  const push = usePushNotifications(notify)
   const navigate = useNavigate()
   const location = useLocation()
   const startPath = accountStartPath(account)
   const hasUnread = props.conversations.some((item) => item.shopId === account.shop?.id && item.unread > 0)
   const showStorageError = error && !['/choose-role', '/owner/register', '/customer/profile/preferences'].includes(location.pathname)
+
+  useEffect(() => {
+    function openPushNotification(event: MessageEvent) {
+      if (event.origin !== window.location.origin || event.data?.type !== 'bintime:notification-click' || typeof event.data.url !== 'string') return
+      try {
+        const url = new URL(event.data.url, window.location.origin)
+        if (url.origin === window.location.origin && url.protocol === window.location.protocol && !url.username && !url.password) navigate(url.pathname + url.search + url.hash)
+      } catch { /* 잘못된 알림 주소는 이동하지 않는다. */ }
+    }
+    navigator.serviceWorker?.addEventListener('message', openPushNotification)
+    return () => navigator.serviceWorker?.removeEventListener('message', openPushNotification)
+  }, [navigate])
 
   function enterRole(role: Role) {
     if (selectRole(role)) navigate(accountStartPath({ ...account, role }), { replace: true })
@@ -55,7 +70,7 @@ function App() {
         <Route path="/customer/reservations" element={<ReservationsPage {...props} />} />
         <Route path="/customer/shops/:id" element={<ShopDetail {...props} />} />
         <Route path="/customer/chat/:id" element={<ChatPage {...props} role="customer" />} />
-        <Route path="/customer/profile" element={<ProfilePage role="customer" shop={account.shop} preferences={account.preferences} />} />
+        <Route path="/customer/profile" element={<ProfilePage role="customer" shop={account.shop} preferences={account.preferences} push={push} />} />
         <Route path="/customer/profile/preferences" element={<PreferencesPage value={account.preferences} onSave={savePreferences} error={error} />} />
       </Route>
       <Route element={<RoleGate role="owner" account={account} />}>
@@ -63,7 +78,7 @@ function App() {
         <Route path="/owner/alerts" element={<OwnerAlerts {...props} />} />
         <Route path="/owner/chats" element={<OwnerChats {...props} />} />
         <Route path="/owner/chat/:id" element={<ChatPage {...props} role="owner" />} />
-        <Route path="/owner/profile" element={<ProfilePage role="owner" shop={account.shop} preferences={account.preferences} />} />
+        <Route path="/owner/profile" element={<ProfilePage role="owner" shop={account.shop} preferences={account.preferences} push={push} />} />
       </Route>
       <Route path="*" element={<Navigate to={startPath} replace />} />
     </Routes>
