@@ -10,6 +10,8 @@ interface LatLngBounds {
 export interface KakaoMap {
   getCenter(): LatLng
   setCenter(position: LatLng): void
+  getLevel(): number
+  setLevel(level: number): void
   setBounds(bounds: LatLngBounds, top: number, right: number, bottom: number, left: number): void
   relayout(): void
 }

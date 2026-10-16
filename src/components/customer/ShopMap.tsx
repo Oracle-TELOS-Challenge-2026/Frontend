@@ -14,7 +14,10 @@ export function ShopMap({ shops, reservations }: { shops: Shop[]; reservations: 
     const bounds = new maps.LatLngBounds()
     shops.forEach((shop) => bounds.extend(new maps.LatLng(shop.latitude, shop.longitude)))
     if (shops.length === 1) map.setCenter(new maps.LatLng(shops[0].latitude, shops[0].longitude))
-    else map.setBounds(bounds, 75, 65, 45, 65)
+    else {
+      map.setBounds(bounds, 75, 65, 45, 65)
+      map.setLevel(Math.max(1, map.getLevel() - 1))
+    }
   }, [instance, shops])
 
   return <div className="neighborhood-map" aria-label="성수동 가게 지도">
