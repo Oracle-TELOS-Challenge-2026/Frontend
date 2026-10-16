@@ -36,5 +36,5 @@ export function Icon({ name, size = 22, className = '' }: { name: keyof typeof i
 }
 
 export function Mascot({ className = '' }: { className?: string }) {
-  return <img className={`mascot ${className}`} src="/images/bintime-mascot.png" width="1254" height="1254" alt="" draggable={false} />
+  return <img className={`mascot ${className}`} src="/images/bintime-mascot-coral.png" width="1254" height="1254" alt="" draggable={false} />
 }

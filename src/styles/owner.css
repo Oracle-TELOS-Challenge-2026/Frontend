@@ -1,10 +1,10 @@
 .owner-greeting { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
 .owner-greeting h1 { margin: 5px 0 0; font-size: 27px; font-weight: 800; line-height: 1.35; letter-spacing: -1.3px; }
-.owner-shop-mark { display: grid; place-items: center; width: 56px; height: 56px; flex: 0 0 auto; border: 1px solid var(--secondary); border-radius: 18px; background: var(--soft-surface); color: var(--primary); }
+.owner-shop-mark { display: grid; place-items: center; width: 56px; height: 56px; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 18px; background: var(--soft-surface); color: var(--primary); }
 .owner-shop-mark svg { width: 28px; height: 28px; }
 .owner-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 27px; }
 .owner-summary > div { padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
-.owner-summary > div:last-child { border-color: var(--secondary); background: var(--soft-surface); }
+.owner-summary > div:last-child { border-color: var(--line); background: var(--soft-surface); }
 .owner-summary > div:last-child p { color: var(--primary-dark); }
 .owner-summary p { margin: 0 0 9px; color: var(--muted); font-size: 12px; }
 .owner-summary strong { color: var(--primary-dark); font-size: 26px; font-weight: 800; letter-spacing: -1px; }
@@ -18,8 +18,8 @@
 .owner-day { display: flex; min-height: 67px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 14px; background: transparent; color: var(--ink); cursor: pointer; transition: background .15s, color .15s; }
 .owner-day span { color: var(--muted); font-size: 11px; }
 .owner-day strong { font-size: 17px; font-weight: 650; }
-.owner-day.selected { background: var(--primary); color: white; }
-.owner-day.selected span { color: white; }
+.owner-day.selected { background: var(--primary); color: var(--on-primary); }
+.owner-day.selected span { color: var(--on-primary); }
 .owner-day.is-today:not(.selected) { background: var(--soft-surface); }
 .owner-day:not(.selected):hover { background: var(--soft-surface); }
 .owner-schedule-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 22px; }
@@ -30,7 +30,7 @@
 .owner-hour { position: absolute; left: 0; width: 100%; border-top: 1px solid var(--line); pointer-events: none; }
 .owner-hour > span { position: absolute; top: -9px; right: calc(100% + 9px); color: var(--muted); font-size: 10px; white-space: nowrap; }
 .owner-booking { position: absolute; left: 9px; right: 2px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; overflow: hidden; padding: 6px 15px; border: 0; border-left: 3px solid var(--primary); border-radius: 12px; background: var(--soft-surface); color: var(--ink); text-align: left; line-height: 1.2; cursor: pointer; }
-.owner-booking:hover { background: var(--secondary); }
+.owner-booking:hover { border-left-color: var(--primary-dark); background: var(--surface); }
 .owner-booking small { color: var(--primary-dark); font-size: 11px; }
 .owner-booking strong { font-size: 14px; font-weight: 750; }
 .owner-booking > span { color: var(--primary-dark); font-size: 12px; }
@@ -46,7 +46,7 @@
 .owner-list-heading h2 { margin: 0; font-size: 16px; font-weight: 750; }
 .owner-list-heading span { color: var(--muted); font-size: 11px; }
 .owner-alert-list { display: grid; gap: 14px; }
-.owner-alert-card { padding: 20px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: 0 3px 14px #26233c03; }
+.owner-alert-card { padding: 20px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: 0 3px 14px #33333303; }
 .owner-alert-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 17px; }
 .owner-alert-top time { color: var(--muted); font-size: 11px; }
 .owner-alert-date { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 750; }
@@ -63,16 +63,16 @@
 .owner-conversation-list { display: grid; gap: 10px; margin-top: 24px; }
 .owner-conversation { display: flex; align-items: center; gap: 13px; padding: 18px 14px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: inherit; text-decoration: none; transition: border-color .15s, background .15s; }
 .owner-avatar { display: grid; flex: 0 0 auto; width: 54px; height: 54px; place-items: center; border-radius: 16px; background: var(--soft-surface); color: var(--primary); font-size: 19px; font-weight: 800; }
-.owner-conversation:hover { border-color: var(--secondary); background: var(--background); }
+.owner-conversation:hover { border-color: var(--line); background: var(--background); }
 .owner-conversation-copy { min-width: 0; flex: 1; }
 .owner-conversation-copy h2 { margin: 0 0 7px; font-size: 15px; font-weight: 750; }
 .owner-conversation-copy p { overflow: hidden; margin: 0; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .owner-conversation-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; align-self: stretch; justify-content: center; }
 .owner-conversation-meta time { color: var(--muted); font-size: 10px; white-space: nowrap; }
-.owner-unread { display: grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border-radius: 10px; background: var(--accent); color: var(--ink); font-size: 11px; font-weight: 700; }
+.owner-unread { display: grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border-radius: 10px; background: var(--accent); color: var(--on-primary); font-size: 11px; font-weight: 700; }
 .owner-dialog { position: fixed; inset: auto 0 0; width: min(480px, 100%); max-width: 100%; max-height: 90svh; margin: auto auto 0; padding: 27px 24px max(27px, env(safe-area-inset-bottom)); overflow-y: auto; border: 0; border-radius: 24px 24px 0 0; background: var(--surface); color: var(--ink); }
-.owner-dialog::backdrop { background: #26233c55; backdrop-filter: blur(3px); }
-.owner-dialog::before { content: ''; display: block; width: 35px; height: 4px; margin: -13px auto 22px; border-radius: 10px; background: var(--secondary); }
+.owner-dialog::backdrop { background: #33333355; backdrop-filter: blur(3px); }
+.owner-dialog::before { content: ''; display: block; width: 35px; height: 4px; margin: -13px auto 22px; border-radius: 10px; background: var(--line); }
 .owner-dialog .modal-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .owner-dialog .modal-heading h2 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.8px; }
 .owner-dialog-date { margin: 0 0 23px; color: var(--muted); font-size: 13px; }
@@ -85,7 +85,7 @@
 .owner-discount-toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .owner-discount-toggle span { display: block; padding: 12px 8px; border: 1px solid var(--line); border-radius: 12px; text-align: center; font-size: 13px; }
 .owner-discount-toggle input:checked + span { border-color: var(--primary); background: var(--soft-surface); color: var(--primary-dark); font-weight: 750; }
-.owner-discount-toggle input:focus-visible + span { outline: 3px solid var(--primary); outline-offset: 3px; }
+.owner-discount-toggle input:focus-visible + span { outline: 3px solid var(--primary-dark); outline-offset: 3px; }
 .owner-price-field { position: relative; }
 .owner-price-field input { padding: 13px 43px 13px 13px; font-size: 18px; font-weight: 750; }
 .owner-price-field > span { position: absolute; right: 15px; top: 15px; color: var(--muted); font-size: 14px; }

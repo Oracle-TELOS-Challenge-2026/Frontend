@@ -121,7 +121,7 @@
   background: var(--primary);
   border-color: var(--primary);
   border-radius: 18px 4px 18px 18px;
-  color: white;
+  color: var(--on-primary);
 }
 
 .chat-message.mine time {
@@ -159,7 +159,7 @@
   justify-content: center;
   background: var(--primary);
   border-radius: 14px;
-  color: white;
+  color: var(--on-primary);
   transition: background .15s, transform .15s;
 }
 

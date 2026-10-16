@@ -70,7 +70,7 @@
 }
 
 .login-intro h1 span {
-  color: var(--primary);
+  color: var(--primary-dark);
 }
 
 .login-intro p {
@@ -116,7 +116,7 @@
 .art-caption {
   position: absolute;
   font-size: 11px;
-  box-shadow: 0 3px 12px #26233c06;
+  box-shadow: 0 3px 12px #33333306;
   z-index: 1;
   white-space: nowrap;
 }
