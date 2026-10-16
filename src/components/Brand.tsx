@@ -1,3 +1,3 @@
 export function Brand({ large = false }: { large?: boolean }) {
-  return <span className={`brand ${large ? 'brand-large' : ''}`}><span className="brand-mark"><img src="/favicon.svg?v=coral-20261016" width={large ? 38 : 30} height={large ? 38 : 30} alt="" /></span>빈틈<span className="brand-english"> BinTime</span></span>
+  return <span className={`brand ${large ? 'brand-large' : ''}`}><span className="brand-mark"><img src="/icons/puzzle-mark-192.png" width={large ? 48 : 38} height={large ? 48 : 38} alt="" /></span><img className="brand-wordmark" src="/images/bintime-wordmark-03.png" width="1186" height="256" alt="빈틈 BinTime" /></span>
 }
