@@ -27,6 +27,7 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
   const confirmingRef = useRef(false)
   const confirmationKeys = useRef(new Map<string, string>())
   const messagesEnd = useRef<HTMLDivElement>(null)
+  const messageInput = useRef<HTMLInputElement>(null)
   const sendingRef = useRef(false)
   const draft = useRef<{ content: string; id: string } | null>(null)
   const conversation = chat.conversations.find((room) => role === 'customer' ? room.store.id === id && room.customer.id === userId : room.id === id)
@@ -102,6 +103,7 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
 
   async function submitMessage() {
     if (!conversation || sendingRef.current || !message.trim() || readOnly) return
+    messageInput.current?.focus()
     sendingRef.current = true
     setSending(true)
     setSendError('')
@@ -113,7 +115,7 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
       draft.current = null
     } catch (cause) {
       setSendError(cause instanceof Error ? cause.message : '메시지를 보내지 못했어요. 다시 보내 주세요.')
-    } finally { sendingRef.current = false; setSending(false) }
+    } finally { sendingRef.current = false; setSending(false); messageInput.current?.focus() }
   }
 
   async function confirm() {
@@ -177,6 +179,6 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
       {sendError && <p className="form-error" role="alert">{sendError}</p>}
       <div className="customer-dialog-actions"><button type="button" className="button secondary" disabled={confirming} onClick={() => setConfirmation(null)}>돌아가기</button><button type="button" className="button" disabled={confirming} onClick={() => void confirm()}>{confirming ? '예약 확정 중…' : '예약 확정하기'}</button></div>
     </Modal>}
-    {readOnly ? <p className="chat-status">종료된 대화에서는 메시지를 보낼 수 없어요.</p> : <form className="chat-composer" onSubmit={(event) => { event.preventDefault(); void submitMessage() }}><label className="sr-only" htmlFor="chat-message">메시지</label><input id="chat-message" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={2000} placeholder="메시지를 입력해 주세요" autoComplete="off" disabled={sending} /><button type="submit" className="send-button" aria-label={sending ? '메시지 전송 중' : '메시지 보내기'} disabled={!message.trim() || sending}><Icon name="send" size={20} /></button></form>}
+    {readOnly ? <p className="chat-status">종료된 대화에서는 메시지를 보낼 수 없어요.</p> : <form className="chat-composer" onSubmit={(event) => { event.preventDefault(); void submitMessage() }}><label className="sr-only" htmlFor="chat-message">메시지</label><input ref={messageInput} id="chat-message" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={2000} placeholder="메시지를 입력해 주세요" autoComplete="off" readOnly={sending} /><button type="submit" className="send-button" aria-label={sending ? '메시지 전송 중' : '메시지 보내기'} disabled={!message.trim() || sending}><Icon name="send" size={20} /></button></form>}
   </div>
 }
