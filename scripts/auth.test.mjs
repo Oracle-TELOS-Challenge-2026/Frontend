@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { KAKAO_LOGIN_URL, logout, readSession } from '../src/lib/auth.ts'
-import { BACKEND_API_ORIGIN } from '../src/lib/backend-api.ts'
 
 const user = { id: 'usr_001', displayName: '빈틈고객', roles: ['CUSTOMER'], ownedStoreIds: [], preferences: { categories: [], keywords: [], maxPrice: null, text: '' }, location: null, version: 1 }
 const success = (data) => Response.json({ resultType: 'SUCCESS', success: { data }, error: null })
@@ -10,7 +9,8 @@ const failure = (status, code = `HTTP_${status}`) => Response.json({ resultType:
 function mockRequests(t, responses) {
   const pending = [...responses]
   return t.mock.method(globalThis, 'fetch', async (url, options) => {
-    assert.equal(new URL(url).origin, BACKEND_API_ORIGIN)
+    assert.match(url, /^\/api\//)
+    assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').origin, 'https://frontend-oracle.vercel.app')
     assert.equal(options.credentials, 'include')
     assert.equal(options.cache, 'no-store')
     assert.ok(options.signal instanceof AbortSignal)
@@ -19,14 +19,15 @@ function mockRequests(t, responses) {
   })
 }
 
-test('Kakao starts with a browser destination and restores only server user values', async (t) => {
-  assert.equal(KAKAO_LOGIN_URL, `${BACKEND_API_ORIGIN}/api/v1/auth/oauth/kakao/start`)
+test('Kakao starts on the frontend origin and restores only server user values', async (t) => {
+  assert.equal(KAKAO_LOGIN_URL, '/api/v1/auth/oauth/kakao/start')
+  assert.equal(new URL(KAKAO_LOGIN_URL, 'https://frontend-oracle.vercel.app').origin, 'https://frontend-oracle.vercel.app')
   const fetch = mockRequests(t, [success(user), success({ ...user, roles: ['OWNER', 'CUSTOMER'] }), success({ ...user, id: 'u'.repeat(65) })])
   assert.deepEqual(await readSession(), { status: 'authenticated', user })
   assert.deepEqual(await readSession(), { status: 'authenticated', user: { ...user, roles: ['OWNER', 'CUSTOMER'] } })
   assert.deepEqual(await readSession(), { status: 'authenticated', user: { ...user, id: 'u'.repeat(65) } })
   for (const { arguments: [url, options] } of fetch.mock.calls) {
-    assert.equal(new URL(url).pathname, '/api/v1/users/me')
+    assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').pathname, '/api/v1/users/me')
     assert.equal(options.method, 'GET')
     assert.equal(options.headers.Authorization, undefined)
   }
@@ -81,7 +82,7 @@ test('logout gets a fresh CSRF token for each attempt and never parses 204', asy
   await logout()
   assert.equal(firstJson.mock.callCount(), 0)
   assert.equal(secondJson.mock.callCount(), 0)
-  assert.deepEqual(fetch.mock.calls.map(({ arguments: [url, options] }) => [new URL(url).pathname, options.method, options.headers['X-CSRF-Token']]), [
+  assert.deepEqual(fetch.mock.calls.map(({ arguments: [url, options] }) => [new URL(url, 'https://frontend-oracle.vercel.app').pathname, options.method, options.headers['X-CSRF-Token']]), [
     ['/api/v1/auth/csrf', 'GET', undefined], ['/api/v1/auth/logout', 'POST', 'first-token'],
     ['/api/v1/auth/csrf', 'GET', undefined], ['/api/v1/auth/logout', 'POST', 'second-token'],
   ])
@@ -118,7 +119,7 @@ test('invalid CSRF refreshes the token but never automatically repeats logout', 
     return true
   })
   assert.equal(fetch.mock.callCount(), 3)
-  assert.deepEqual(fetch.mock.calls.map(({ arguments: [url] }) => new URL(url).pathname), ['/api/v1/auth/csrf', '/api/v1/auth/logout', '/api/v1/auth/csrf'])
+  assert.deepEqual(fetch.mock.calls.map(({ arguments: [url] }) => new URL(url, 'https://frontend-oracle.vercel.app').pathname), ['/api/v1/auth/csrf', '/api/v1/auth/logout', '/api/v1/auth/csrf'])
 })
 
 test('an expired session during CSRF refresh completes logout, other refresh failures do not', async (t) => {

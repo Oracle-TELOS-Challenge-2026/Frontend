@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { BACKEND_API_ORIGIN, apiId, requestBackendApi, mutateBackendApi } from '../src/lib/backend-api.ts'
+import { apiId, requestBackendApi, mutateBackendApi } from '../src/lib/backend-api.ts'
 
 const success = (data = { items: [] }) => ({ resultType: 'SUCCESS', success: { data }, error: null })
 const failure = (code = 'REJECTED') => ({ resultType: 'FAILURE', success: null, error: { code, message: '요청 실패' } })
@@ -10,9 +10,10 @@ test('opaque IDs are encoded and unsafe path segments are rejected', () => {
   for (const id of ['', ' ', '.', '..', 's'.repeat(65), 'shop\n1', '\ud800']) assert.throws(() => apiId(id), { code: 'INVALID_REQUEST' })
 })
 
-test('GET includes session credentials and unwraps data without a request body', async (t) => {
+test('GET uses the frontend API path with session credentials and no request body', async (t) => {
   t.mock.method(globalThis, 'fetch', async (url, options) => {
-    assert.equal(url, `${BACKEND_API_ORIGIN}/api/v1/stores/categories`)
+    assert.equal(url, '/api/v1/stores/categories')
+    assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').origin, 'https://frontend-oracle.vercel.app')
     assert.equal(options.method, 'GET')
     assert.equal(options.credentials, 'include')
     assert.equal(options.cache, 'no-store')
@@ -32,13 +33,14 @@ test('mutations carry JSON, a fresh CSRF token and the caller retry key', async 
   })
   for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
     await mutateBackendApi('/api/v1/resource', { method, body: { text: '한글' }, idempotencyKey: 'same-retry-key' })
-    const { options } = requests.at(-1)
+    const { url, options } = requests.at(-1)
+    assert.equal(url, '/api/v1/resource')
     assert.equal(options.method, method)
     assert.equal(options.headers['X-CSRF-Token'], 'csrf')
     assert.equal(options.headers['Idempotency-Key'], 'same-retry-key')
     assert.equal(options.headers['Content-Type'], 'application/json')
     assert.deepEqual(JSON.parse(options.body), { text: '한글' })
-    assert.equal(new URL(requests.at(-2).url).pathname, '/api/v1/auth/csrf')
+    assert.equal(requests.at(-2).url, '/api/v1/auth/csrf')
   }
 })
 

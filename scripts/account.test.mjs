@@ -72,12 +72,12 @@ test('store creation and service retry use separate idempotency keys and server 
   const completed = await createRegisteredService(created, shop, 'service-key')
   assert.deepEqual(completed, shop)
   const storeRequest = fetch.mock.calls[1].arguments
-  assert.equal(new URL(storeRequest[0]).pathname, '/api/v1/owner/stores')
+  assert.equal(new URL(storeRequest[0], 'https://frontend-oracle.vercel.app').pathname, '/api/v1/owner/stores')
   assert.equal(storeRequest[1].headers['Idempotency-Key'], 'store-key')
   assert.equal(storeRequest[1].headers['X-CSRF-Token'], 'csrf')
   assert.deepEqual(JSON.parse(storeRequest[1].body), { name: shop.name, category: 'NAIL', address: shop.address, location: storeResponse.location, openingHours: shop.openingHours })
   const serviceRequest = fetch.mock.calls[3].arguments
-  assert.equal(new URL(serviceRequest[0]).pathname, '/api/v1/owner/stores/store-1/services')
+  assert.equal(new URL(serviceRequest[0], 'https://frontend-oracle.vercel.app').pathname, '/api/v1/owner/stores/store-1/services')
   assert.equal(serviceRequest[1].headers['Idempotency-Key'], 'service-key')
   assert.deepEqual(JSON.parse(serviceRequest[1].body), { name: shop.service, durationMinutes: 60, basePrice: 50000, active: true })
 })

@@ -11,12 +11,12 @@ test('FID registration and removal use the authenticated server subscription ID'
   assert.equal(id, 'push/1')
   await deletePushSubscription(id)
   const create = fetch.mock.calls[1].arguments
-  assert.equal(new URL(create[0]).pathname, '/api/v1/notifications/push-subscriptions')
+  assert.equal(create[0], '/api/v1/notifications/push-subscriptions')
   assert.equal(create[1].method, 'POST')
   assert.equal(create[1].headers['X-CSRF-Token'], 'csrf')
   assert.deepEqual(JSON.parse(create[1].body), { installationId: 'browser-fid' })
   const remove = fetch.mock.calls[3].arguments
-  assert.equal(new URL(remove[0]).pathname, '/api/v1/notifications/push-subscriptions/push%2F1')
+  assert.equal(remove[0], '/api/v1/notifications/push-subscriptions/push%2F1')
   assert.equal(remove[1].method, 'DELETE')
   assert.equal(remove[1].headers['X-CSRF-Token'], 'csrf')
 })
@@ -35,7 +35,7 @@ test('lost subscription responses recover the existing ID by FID before deleting
   const fetch = t.mock.method(globalThis, 'fetch', async () => responses.shift())
   await deletePushSubscription('', 'saved-fid')
   assert.deepEqual(JSON.parse(fetch.mock.calls[1].arguments[1].body), { installationId: 'saved-fid' })
-  assert.equal(new URL(fetch.mock.calls[3].arguments[0]).pathname, '/api/v1/notifications/push-subscriptions/recovered-push')
+  assert.equal(new URL(fetch.mock.calls[3].arguments[0], 'https://frontend-oracle.vercel.app').pathname, '/api/v1/notifications/push-subscriptions/recovered-push')
   assert.equal(fetch.mock.calls[3].arguments[1].method, 'DELETE')
 })
 

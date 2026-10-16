@@ -12,8 +12,8 @@ const shop = { openingHours: [{ dayOfWeek: 'TUE', opensAt: '09:00', closesAt: '1
 
 test('timetable preserves server summary, resource, customer and all reservation statuses', async (t) => {
   t.mock.method(globalThis, 'fetch', async (url, options) => {
-    assert.equal(new URL(url).pathname, '/api/v1/owner/stores/store%2F1/timetable')
-    assert.equal(new URL(url).searchParams.get('date'), '2026-10-20')
+    assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').pathname, '/api/v1/owner/stores/store%2F1/timetable')
+    assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').searchParams.get('date'), '2026-10-20')
     assert.equal(options.method, 'GET')
     return success({ date: '2026-10-20', summary: { total: 8, remainingConfirmed: 2 }, resources: [{ id: 'staff_1', label: '기본 예약 자원' }], reservations: [booking], availableSlots: [slot] })
   })
@@ -32,7 +32,7 @@ test('invalid dates and malformed reservation responses do not become an empty s
 
 test('vacancy history follows cursors and keeps withdrawn, filled and expired states', async (t) => {
   const fetch = t.mock.method(globalThis, 'fetch', async (url) => {
-    const cursor = new URL(url).searchParams.get('cursor')
+    const cursor = new URL(url, 'https://frontend-oracle.vercel.app').searchParams.get('cursor')
     return success({ items: cursor ? [{ ...vacancy, id: 'vacancy_2', status: 'FILLED' }, { ...vacancy, id: 'vacancy_3', status: 'EXPIRED' }] : [{ ...vacancy, status: 'WITHDRAWN' }], page: { hasNext: !cursor, nextCursor: cursor ? null : 'cursor/2' } })
   })
   assert.deepEqual((await readOwnerVacancies('store_1')).map((item) => item.status), ['WITHDRAWN', 'FILLED', 'EXPIRED'])
@@ -62,8 +62,8 @@ test('publication sends CSRF, stable idempotency key and version; server conflic
   const published = { ...vacancy, status: 'PUBLISHED', publishedAt: '2026-10-20T16:00:00+09:00', version: 4 }
   let conflict = false
   t.mock.method(globalThis, 'fetch', async (url, options) => {
-    if (new URL(url).pathname === '/api/v1/auth/csrf') return success({ csrfToken: 'csrf-token' })
-    assert.equal(new URL(url).pathname, '/api/v1/owner/stores/store_1/vacancies/vacancy_1/publish')
+    if (new URL(url, 'https://frontend-oracle.vercel.app').pathname === '/api/v1/auth/csrf') return success({ csrfToken: 'csrf-token' })
+    assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').pathname, '/api/v1/owner/stores/store_1/vacancies/vacancy_1/publish')
     assert.equal(options.method, 'POST')
     assert.equal(options.headers['X-CSRF-Token'], 'csrf-token')
     assert.equal(options.headers['Idempotency-Key'], 'retry-key')
@@ -98,8 +98,8 @@ test('slot registration sends only service and start, preserves the retry key an
   let outcome = 'network'
   const keys = []
   t.mock.method(globalThis, 'fetch', async (url, options) => {
-    if (new URL(url).pathname === '/api/v1/auth/csrf') return success({ csrfToken: 'csrf-token' })
-    assert.equal(new URL(url).pathname, '/api/v1/owner/stores/store%2F1/slots')
+    if (new URL(url, 'https://frontend-oracle.vercel.app').pathname === '/api/v1/auth/csrf') return success({ csrfToken: 'csrf-token' })
+    assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').pathname, '/api/v1/owner/stores/store%2F1/slots')
     assert.equal(options.method, 'POST')
     assert.equal(options.headers['X-CSRF-Token'], 'csrf-token')
     keys.push(options.headers['Idempotency-Key'])
@@ -129,7 +129,7 @@ test('owner detail verifies ownership and status updates use fresh version, allo
   let networkFailure = true
   const keys = []
   t.mock.method(globalThis, 'fetch', async (url, options) => {
-    const path = new URL(url).pathname
+    const path = new URL(url, 'https://frontend-oracle.vercel.app').pathname
     if (path === '/api/v1/auth/csrf') return success({ csrfToken: 'csrf-token' })
     if (options.method === 'GET') return success(response)
     assert.equal(path, '/api/v1/owner/stores/store%2F1/reservations/reservation_1/status')
@@ -157,8 +157,8 @@ test('withdrawing sends published vacancy version and does not hide reservation 
   const published = { ...vacancy, status: 'PUBLISHED', version: 4 }
   let conflict = false
   t.mock.method(globalThis, 'fetch', async (url, options) => {
-    if (new URL(url).pathname === '/api/v1/auth/csrf') return success({ csrfToken: 'csrf-token' })
-    assert.equal(new URL(url).pathname, '/api/v1/owner/stores/store_1/vacancies/vacancy_1/withdraw')
+    if (new URL(url, 'https://frontend-oracle.vercel.app').pathname === '/api/v1/auth/csrf') return success({ csrfToken: 'csrf-token' })
+    assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').pathname, '/api/v1/owner/stores/store_1/vacancies/vacancy_1/withdraw')
     assert.equal(options.headers['Idempotency-Key'], 'withdraw-key')
     assert.equal(options.headers['X-CSRF-Token'], 'csrf-token')
     assert.deepEqual(JSON.parse(options.body), { expectedVersion: 4 })
@@ -176,9 +176,9 @@ const settings = { id: 'store/1', description: '매장 소개', openingHours, ve
 test('store management normalizes server opening times and patches the full validated week with version', async (t) => {
   let conflicting = false
   const fetch = t.mock.method(globalThis, 'fetch', async (url, options) => {
-    if (new URL(url).pathname === '/api/v1/auth/csrf') return success({ csrfToken: 'csrf-token' })
+    if (new URL(url, 'https://frontend-oracle.vercel.app').pathname === '/api/v1/auth/csrf') return success({ csrfToken: 'csrf-token' })
     if (options.method === 'GET') return success({ ...settings, description: null, openingHours: openingHours.toReversed().map((day) => ({ ...day, opensAt: '09:00:00', closesAt: '18:00:00' })) })
-    assert.equal(new URL(url).pathname, '/api/v1/owner/stores/store%2F1')
+    assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').pathname, '/api/v1/owner/stores/store%2F1')
     assert.equal(options.method, 'PATCH')
     assert.equal(options.headers['X-CSRF-Token'], 'csrf-token')
     assert.deepEqual(JSON.parse(options.body), { description: '매장 소개', openingHours, expectedVersion: 2 })
@@ -202,7 +202,7 @@ test('service creation validates duration and price and sends one retry key; upd
   let invalidResponse = false
   const keys = []
   const fetch = t.mock.method(globalThis, 'fetch', async (url, options) => {
-    const path = new URL(url).pathname
+    const path = new URL(url, 'https://frontend-oracle.vercel.app').pathname
     if (path === '/api/v1/auth/csrf') return success({ csrfToken: 'csrf-token' })
     const body = JSON.parse(options.body)
     assert.equal(options.headers['X-CSRF-Token'], 'csrf-token')

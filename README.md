@@ -78,7 +78,7 @@ pnpm dev
 
 ## 카카오 로그인 · 서버 세션
 
-- API 주소는 `src/lib/backend-api.ts`의 `BACKEND_API_ORIGIN = 'https://140.238.19.165'`입니다. 프론트에는 로그인용 카카오 REST API 키나 Client Secret을 넣지 않습니다.
+- API 주소는 `src/lib/backend-api.ts`의 `BACKEND_API_ORIGIN = ''`로, 현재 프론트 주소의 `/api`를 사용합니다. Vercel과 Vite의 프록시가 Oracle API로 전달합니다. 프론트에는 로그인용 카카오 REST API 키나 Client Secret을 넣지 않습니다.
 - 로그인 버튼은 `/api/v1/auth/oauth/kakao/start`로 브라우저를 이동합니다. 콜백·코드 교환·`bt_session` 발급은 백엔드가 처리합니다.
 - `GET /api/v1/users/me`에서 사용자·역할·보유 매장·취향·버전을 조회합니다. `401`은 비로그인, 네트워크·서버·응답 형식 오류는 재시도할 수 있는 오류로 처리합니다.
 - 모든 API 요청은 `credentials: 'include'`를 사용합니다. 변경 요청은 `GET /api/v1/auth/csrf`로 받은 `X-CSRF-Token`을 보내고, 해당 계약이 요구하면 멱등 키를 포함합니다. 세션·CSRF 토큰은 브라우저 저장소에 저장하지 않습니다.
@@ -86,7 +86,9 @@ pnpm dev
 
 로그인 완료 후 시작하기 버튼이나 사용자 ID 안내 없이 홈으로 바로 이동합니다. 마지막으로 이용한 역할을 복원하며, 저장된 역할이 없으면 고객 권한을 우선합니다. 사장님 권한만 있으면 사장님 화면으로 이동하고, 매장 등록이 필요한 경우 등록 화면으로 연결합니다. 로그아웃은 마이페이지에서 할 수 있습니다.
 
-프론트 주소가 바뀌면 백엔드의 `FRONTEND_URL`, CORS와 로그인 완료 리다이렉트를 함께 맞춥니다. 카카오 콜백은 `https://140.238.19.165/api/v1/auth/oauth/kakao/callback`입니다. 개발·배포 origin의 쿠키 전달과 로그인 흐름은 실제 브라우저에서 확인해야 합니다.
+운영 전환 시 서버의 `KAKAO_REDIRECT_URI`와 카카오 콘솔의 콜백을 `https://frontend-oracle.vercel.app/api/v1/auth/oauth/kakao/callback`으로 함께 맞춥니다. `FRONTEND_URL`은 `https://frontend-oracle.vercel.app`을 유지합니다. 로그인 시작·콜백·API가 같은 호스트를 사용해야 Safari에서도 로그인 세션을 이어갈 수 있습니다.
+
+프론트 배포만으로 서버 환경변수와 카카오 콜백 설정까지 완료되지는 않습니다. [서버·카카오 설정 전달 문서](docs/same-origin-login-handoff.md)에 따라 두 설정의 반영 여부와 실제 브라우저 로그인 결과를 확인합니다. Vite 프록시만으로 localhost·Preview 로그인이 준비되지는 않으며, WebSocket·SSE의 운영 프록시 연결도 별도 확인이 필요합니다.
 
 ## 카카오맵 설정
 
@@ -199,7 +201,8 @@ GitHub에 이 저장소를 푸시한 뒤 Vercel의 Add New → Project에서 가
 `pnpm-lock.yaml`을 커밋해 Vercel이 pnpm을 자동 감지하도록 합니다.
 카카오맵 표시는 위의 `VITE_KAKAO_MAP_APP_KEY` 환경변수와 도메인 등록이 필요합니다.
 푸시 수신은 위의 Firebase 환경변수 5개와 사용자의 브라우저 알림 허용이 필요합니다.
-`vercel.json`의 rewrite는 하위 경로 직접 접속과 새로고침을 React Router로 연결합니다.
+`vercel.json`은 `/api/:path*`를 `https://140.238.19.165/api/:path*`로 먼저 전달하고, 나머지 하위 경로 직접 접속과 새로고침을 React Router로 연결합니다. API rewrite는 SPA catch-all보다 앞에 있어야 합니다.
+로그인 전환 배포는 [서버·카카오 설정 전달 문서](docs/same-origin-login-handoff.md)에 따라 서버 담당자와 같은 작업 시간에 진행합니다. 프론트만 먼저 배포하거나 서버 콜백만 먼저 바꾸면 로그인 시작과 콜백의 세션이 분리될 수 있습니다.
 API 연결 시 필요한 공개 설정은 Vercel 프로젝트의 Environment Variables에 등록합니다.
 `VITE_` 변수는 브라우저에 공개되므로 비밀 인증키나 DB 비밀번호를 넣지 않습니다. 카카오맵에는 브라우저 공개용 JavaScript 키만 사용합니다.
 

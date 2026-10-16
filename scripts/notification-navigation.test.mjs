@@ -54,7 +54,7 @@ test('missing, invalid and unrelated rooms cannot open or create a customer chat
 test('notification entry resolves against the existing paginated authenticated chat API', async (t) => {
   const requests = []
   t.mock.method(globalThis, 'fetch', async (value, options) => {
-    const url = new URL(value)
+    const url = new URL(value, 'https://frontend-oracle.vercel.app')
     requests.push(url)
     assert.equal(options.credentials, 'include')
     assert.equal(options.method, 'GET')

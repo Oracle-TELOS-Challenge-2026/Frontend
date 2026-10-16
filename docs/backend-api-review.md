@@ -31,7 +31,7 @@
 
 ## 변경 요청과 오류 처리
 
-- API origin은 `https://140.238.19.165`이며 모든 요청에 `credentials: include`를 사용한다.
+- 브라우저는 현재 프론트 origin의 `/api`를 사용하며, Vercel·Vite 프록시가 `https://140.238.19.165/api`로 전달한다. 모든 요청에 `credentials: include`를 사용한다. 운영 로그인 전환에는 [서버·카카오 설정](same-origin-login-handoff.md)을 함께 적용해야 한다.
 - 변경 요청 전에 `/auth/csrf`에서 토큰을 받아 `X-CSRF-Token`을 보낸다. 계약이 요구하는 생성·취소·발행에는 `Idempotency-Key`를 사용한다.
 - 예약은 사용자가 확인한 가격·시술·시간을 최신 슬롯과 비교하고, 확인한 요청 본문과 멱등 키를 재시도 때 유지한다. 실제 점유 충돌은 서버가 처리한다.
 - 변경 API의 `expectedVersion`은 서버에서 받은 값을 사용한다. 가격·시간·버전 충돌을 성공으로 처리하거나 임의 덮어쓰지 않는다.

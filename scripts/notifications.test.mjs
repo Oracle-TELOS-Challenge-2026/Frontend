@@ -24,7 +24,7 @@ test('notification list uses cursor pagination and validates unread count and pa
   const last = await fetchNotifications(first.nextCursor)
   assert.equal(last.nextCursor, null)
   const [url, options] = fetch.mock.calls[1].arguments
-  assert.equal(new URL(url).searchParams.get('cursor'), 'cursor-2')
+  assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').searchParams.get('cursor'), 'cursor-2')
   assert.equal(options.credentials, 'include')
   await assert.rejects(fetchNotifications(), /알림 목록/)
   await assert.rejects(fetchNotifications('loop'), /다음 알림/)
@@ -36,7 +36,7 @@ test('marking notifications read sends CSRF and read=true and rejects unconfirme
   const read = await markNotificationRead('noti/1')
   assert.ok(read.readAt)
   const [url, options] = fetch.mock.calls[1].arguments
-  assert.equal(new URL(url).pathname, '/api/v1/notifications/noti%2F1/read')
+  assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').pathname, '/api/v1/notifications/noti%2F1/read')
   assert.equal(options.method, 'PATCH')
   assert.equal(options.headers['X-CSRF-Token'], 'csrf')
   assert.deepEqual(JSON.parse(options.body), { read: true })
@@ -91,7 +91,9 @@ test('SSE handles fragmented UTF-8, CRLF, heartbeats, multiline JSON, and sessio
   assert.equal(events[0].notification.title, '빈자리 알림')
   assert.equal(events[1].notificationId, 'noti-1')
   const [url, options] = fetch.mock.calls[0].arguments
-  assert.equal(new URL(url).searchParams.get('afterEventId'), 'evt/old')
+  assert.equal(url, '/api/v1/notifications/stream?afterEventId=evt%2Fold')
+  assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').origin, 'https://frontend-oracle.vercel.app')
+  assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').searchParams.get('afterEventId'), 'evt/old')
   assert.equal(options.credentials, 'include')
   assert.equal(options.headers.Accept, 'text/event-stream')
 })

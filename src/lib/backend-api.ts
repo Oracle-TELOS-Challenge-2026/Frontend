@@ -1,4 +1,5 @@
-export const BACKEND_API_ORIGIN = 'https://140.238.19.165'
+// 로그인 쿠키가 사이트 간 쿠키로 차단되지 않도록 현재 사이트의 /api 프록시를 사용한다.
+export const BACKEND_API_ORIGIN = ''
 
 export class BackendApiError extends Error {
   status: number

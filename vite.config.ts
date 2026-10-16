@@ -5,4 +5,9 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    proxy: {
+      '/api': { target: 'https://140.238.19.165', changeOrigin: true, ws: true },
+    },
+  },
 })

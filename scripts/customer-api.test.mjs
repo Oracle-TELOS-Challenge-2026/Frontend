@@ -25,7 +25,7 @@ test('cursor pages are loaded in full and a repeated cursor fails instead of loo
   const urls = []
   t.mock.method(globalThis, 'fetch', async (url) => { urls.push(url); return success({ items: [urls.length], page: { hasNext: urls.length === 1, nextCursor: urls.length === 1 ? 'next + &' : null } }) })
   assert.deepEqual(await readItems('/api/v1/items?limit=100'), [1, 2])
-  assert.equal(new URL(urls[1]).searchParams.get('cursor'), 'next + &')
+  assert.equal(new URL(urls[1], 'https://frontend-oracle.vercel.app').searchParams.get('cursor'), 'next + &')
   t.mock.method(globalThis, 'fetch', async () => success({ items: [], page: { hasNext: true, nextCursor: 'same' } }))
   await assert.rejects(readItems('/api/v1/items'), { code: 'INVALID_RESPONSE' })
 })
@@ -39,7 +39,7 @@ test('empty real search results stay empty and malformed data is not replaced by
 
 test('latest published examples map category, store slots, reservation and waitlist offers', async (t) => {
   t.mock.method(globalThis, 'fetch', async (url) => {
-    const path = new URL(url).pathname
+    const path = new URL(url, 'https://frontend-oracle.vercel.app').pathname
     if (path.endsWith('/categories')) return success(example('/api/v1/stores/categories'))
     if (path === '/api/v1/search/stores') return success(example('/api/v1/search/stores'))
     if (path.endsWith('/services')) return success(example('/api/v1/stores/{storeId}/services'))
@@ -66,7 +66,7 @@ test('latest published examples map category, store slots, reservation and waitl
 test('new stores without an optional description still open, while invalid descriptions fail', async (t) => {
   let description = null
   t.mock.method(globalThis, 'fetch', async (url) => {
-    const path = new URL(url).pathname
+    const path = new URL(url, 'https://frontend-oracle.vercel.app').pathname
     if (path.endsWith('/services')) return success(example('/api/v1/stores/{storeId}/services'))
     if (path.endsWith('/slots')) return success(example('/api/v1/stores/{storeId}/slots'))
     return success({ ...example('/api/v1/stores/{storeId}'), description })
@@ -130,7 +130,7 @@ test('individual reservation and waitlist detail validate IDs and preserve agree
   const reservation = example('/api/v1/reservations/{reservationId}')
   reservation.service.serviceDescription = '젤 네일 + 기존 젤 제거 + 아트 2개'
   const waitlist = example('/api/v1/search/waitlists/{waitlistId}')
-  t.mock.method(globalThis, 'fetch', async (url) => success(new URL(url).pathname.includes('/reservations/') ? reservation : waitlist))
+  t.mock.method(globalThis, 'fetch', async (url) => success(new URL(url, 'https://frontend-oracle.vercel.app').pathname.includes('/reservations/') ? reservation : waitlist))
   assert.equal((await readReservation(reservation.id)).service, reservation.service.serviceDescription)
   assert.equal((await readWaitlistItem(waitlist.id)).version, waitlist.version)
   await assert.rejects(readReservation('wrong-id'), { code: 'INVALID_RESPONSE' })

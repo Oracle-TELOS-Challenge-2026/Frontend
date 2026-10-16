@@ -12,7 +12,10 @@ const bookingMessage = (status = 'PENDING', version = 1) => ({ ...message(2, 'ow
 
 function mockFetch(t, handler) {
   const original = globalThis.fetch
-  globalThis.fetch = async (url, options) => handler(new URL(url), options)
+  globalThis.fetch = async (url, options) => {
+    assert.match(url, /^\/api\//)
+    return handler(new URL(url, 'https://frontend-oracle.vercel.app'), options)
+  }
   t.after(() => { globalThis.fetch = original })
 }
 
@@ -265,7 +268,8 @@ test('WebSocket authenticates, replays messages, separates state-only updates an
   t.after(stop)
   await flushSocket()
   const socket = sockets[0]
-  assert.equal(socket.url, 'wss://140.238.19.165/api/v1/chatting/ws')
+  assert.equal(socket.url, '/api/v1/chatting/ws')
+  assert.equal(new URL(socket.url, 'wss://frontend-oracle.vercel.app').href, 'wss://frontend-oracle.vercel.app/api/v1/chatting/ws')
   assert.equal(socket.protocol, 'bintime.chat.v1')
   socket.open()
   assert.deepEqual(socket.sent[0].payload, { csrfToken: 'csrf' })
