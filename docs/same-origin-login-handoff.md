@@ -74,7 +74,9 @@ Safari의 사이트 간 추적 방지를 켠 기본 설정으로 확인한다. M
 
 로그인 성공 화면이나 콜백 `303`만으로 검증을 끝내지 않는다. 최종 `/users/me`가 `200`인지 확인한다. `KOE006`이면 카카오 등록 URI와 실제 `redirect_uri`를 비교하고, `OAUTH_FAILED`면 시작·콜백 호스트 및 OAuth 세션 연속성을 확인한다. 콜백 후 `401`이면 쿠키 저장·전송과 프록시의 헤더 전달을 확인한다. API 응답이 HTML이면 rewrite 순서를 확인한다.
 
-채팅 WebSocket의 `101 Switching Protocols`, 두 계정 간 실시간 송수신과 읽음, SSE의 `text/event-stream` 지속 수신·재연결도 별도로 확인한다. **Vercel 운영 프록시를 통과하는 WebSocket·SSE는 아직 검증하지 않았다.** 채팅의 기존 REST 복구만 작동하는 경우를 WebSocket 검증 성공으로 기록하지 않는다.
+2026년 10월 17일 08:49~08:50 KST, `97bd903` 운영 배포에서 로그인된 Chrome 세션으로 CSRF `200`, `bintime.chat.v1` WebSocket 연결 성립, `connection.ready`, 65초 후 열린 연결 유지, 검증 종료 시 코드 `1000`을 확인했다. 로그인 없는 요청은 `401`, 잘못된 Origin은 `403`으로 거절됐다. 중계 회귀 테스트를 포함한 155개 테스트와 lint·빌드도 통과했다.
+
+검증 계정에 기존 채팅방이 없어 운영의 `room.subscribed`, 두 계정 간 메시지·읽음은 확인하지 않았다. iPhone 실기기와 함수 최대 실행 시간(300초) 이후 재연결, SSE의 지속 수신·재연결도 별도 확인이 필요하다. 채팅의 기존 REST 복구만 작동하는 경우를 WebSocket 검증 성공으로 기록하지 않는다.
 
 ## localhost와 Preview의 제한
 
