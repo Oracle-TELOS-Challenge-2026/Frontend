@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Shop } from '../model'
 
 export function useShopSearch(shops: Shop[]) {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('전체')
   const [expanded, setExpanded] = useState(false)
-  const results = shops.filter((shop) => (category === '전체' || shop.category === category) && `${shop.name} ${shop.category} ${shop.service} ${shop.address}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+  const results = useMemo(() => shops.filter((shop) => (category === '전체' || shop.category === category) && `${shop.name} ${shop.category} ${shop.service} ${shop.address}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())), [shops, category, query])
 
   return {
     query, category, expanded, results, setExpanded,

@@ -21,8 +21,8 @@ export interface Shop {
   service: string
   originalPrice: number
   duration: number
-  mapX: number
-  mapY: number
+  latitude: number
+  longitude: number
   slots: Slot[]
 }
 
