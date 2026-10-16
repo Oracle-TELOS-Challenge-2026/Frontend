@@ -12,14 +12,15 @@ export function AppLayout({ children, toast, hasUnread }: { children: ReactNode;
   const role = location.pathname.startsWith('/owner') ? 'owner' : 'customer'
   const isApp = location.pathname.startsWith('/customer') || location.pathname.startsWith('/owner')
   const isChat = location.pathname.includes('/chat/')
+  const isCustomerMap = location.pathname.replace(/\/$/, '') === '/customer'
   useEffect(() => { content.current?.scrollTo(0, 0) }, [location.pathname])
 
   return <div className="app-stage">
     <DesktopIntro />
     <main className={`app-frame ${isApp ? 'in-app' : 'auth-frame'}`}>
-      {isApp && <header className="app-header">
+      {isApp && !isCustomerMap && <header className="app-header">
         <Link to={`/${role}`} aria-label="홈으로"><Brand /></Link>
-        <span className="header-role">{role === 'owner' ? '사장님' : '성수동'}{role === 'customer' && <Icon name="pin" size={12} />}</span>
+        {role === 'owner' && <span className="header-role">사장님</span>}
         <Link to="/choose-role" className="role-switch"><Icon name="user" size={15} />역할 변경</Link>
       </header>}
       <div ref={content} className={`app-content ${isChat ? 'chat-content' : ''}`}>{children}</div>

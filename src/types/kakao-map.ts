@@ -5,10 +5,13 @@ interface LatLng {
 
 interface LatLngBounds {
   extend(position: LatLng): void
+  getSouthWest(): LatLng
+  getNorthEast(): LatLng
 }
 
 export interface KakaoMap {
   getCenter(): LatLng
+  getBounds(): LatLngBounds
   setCenter(position: LatLng): void
   getLevel(): number
   setLevel(level: number): void
@@ -18,6 +21,10 @@ export interface KakaoMap {
 
 export interface KakaoMaps {
   load(callback: () => void): void
+  event: {
+    addListener(target: KakaoMap, type: 'dragend' | 'zoom_changed', handler: () => void): void
+    removeListener(target: KakaoMap, type: 'dragend' | 'zoom_changed', handler: () => void): void
+  }
   Map: new (container: HTMLElement, options: { center: LatLng; level: number }) => KakaoMap
   LatLng: new (latitude: number, longitude: number) => LatLng
   LatLngBounds: new () => LatLngBounds
@@ -27,7 +34,7 @@ export interface KakaoMaps {
     content: HTMLElement
     clickable: boolean
     yAnchor: number
-  }) => { setMap(map: KakaoMap | null): void }
+  }) => { setMap(map: KakaoMap | null): void; setZIndex(zIndex: number): void; setPosition(position: LatLng): void }
 }
 
 export interface KakaoMapInstance {

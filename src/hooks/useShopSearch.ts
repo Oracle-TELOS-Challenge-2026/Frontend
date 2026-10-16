@@ -1,16 +1,18 @@
 import { useMemo, useState } from 'react'
 import type { Shop } from '../model'
+import { filterShops, type SearchBounds } from '../lib/shop-search'
 
 export function useShopSearch(shops: Shop[]) {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('전체')
   const [expanded, setExpanded] = useState(false)
-  const results = useMemo(() => shops.filter((shop) => (category === '전체' || shop.category === category) && `${shop.name} ${shop.category} ${shop.service} ${shop.address}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())), [shops, category, query])
+  const [bounds, setBounds] = useState<SearchBounds | null>(null)
+  const results = useMemo(() => filterShops(shops, query, category, bounds), [shops, category, query, bounds])
 
   return {
-    query, category, expanded, results, setExpanded,
-    search: (value: string) => { setQuery(value); setExpanded(Boolean(value)) },
-    selectCategory: (value: string) => { setCategory(value); setExpanded(value !== '전체' || Boolean(query.trim())) },
+    query, category, expanded, results, setExpanded, setBounds,
+    search: setQuery,
+    selectCategory: setCategory,
     reset: () => { setQuery(''); setCategory('전체'); setExpanded(false) },
   }
 }

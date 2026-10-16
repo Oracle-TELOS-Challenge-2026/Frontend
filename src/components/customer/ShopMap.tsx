@@ -1,26 +1,76 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Icon } from '../Icon'
 import { ShopMapMarker } from './ShopMapMarker'
+import { UserLocation } from './UserLocation'
 import { useKakaoMap } from '../../hooks/useKakaoMap'
-import { getAvailableSlots } from '../../model'
+import { DEMO_AREA_LABEL, DEMO_RADIUS_KM, getAvailableSlots } from '../../model'
 import type { Reservation, Shop } from '../../model'
+import { hasSearchAreaChanged, type SearchBounds } from '../../lib/shop-search'
+import type { KakaoMap } from '../../types/kakao-map'
 
-export function ShopMap({ shops, reservations }: { shops: Shop[]; reservations: Reservation[] }) {
+function readBounds(map: KakaoMap): SearchBounds {
+  const bounds = map.getBounds()
+  const sw = bounds.getSouthWest()
+  const ne = bounds.getNorthEast()
+  return { south: sw.getLat(), west: sw.getLng(), north: ne.getLat(), east: ne.getLng() }
+}
+
+interface ShopMapProps {
+  shops: Shop[]
+  reservations: Reservation[]
+  expanded: boolean
+  selectedId?: string
+  onSelect: (id: string | null) => void
+  onSearchArea: (bounds: SearchBounds) => void
+}
+
+export function ShopMap({ shops, reservations, expanded, selectedId, onSelect, onSearchArea }: ShopMapProps) {
   const { containerRef, instance, status, retry } = useKakaoMap()
+  const [areaChanged, setAreaChanged] = useState(false)
+  const searchedArea = useRef<{ bounds: SearchBounds; level: number } | null>(null)
+
+  const searchArea = useCallback(() => {
+    if (!instance) return
+    const center = instance.map.getCenter()
+    flushSync(() => onSelect(null))
+    instance.map.relayout()
+    instance.map.setCenter(center)
+    const bounds = readBounds(instance.map)
+    searchedArea.current = { bounds, level: instance.map.getLevel() }
+    onSearchArea(bounds)
+    setAreaChanged(false)
+  }, [instance, onSelect, onSearchArea])
 
   useEffect(() => {
-    if (!instance || shops.length === 0) return
+    if (!instance) return
     const { map, maps } = instance
-    const bounds = new maps.LatLngBounds()
-    shops.forEach((shop) => bounds.extend(new maps.LatLng(shop.latitude, shop.longitude)))
-    if (shops.length === 1) map.setCenter(new maps.LatLng(shops[0].latitude, shops[0].longitude))
-    else {
-      map.setBounds(bounds, 75, 65, 45, 65)
-      map.setLevel(Math.max(1, map.getLevel() - 1))
+    const onMove = () => {
+      const previous = searchedArea.current
+      const changed = previous !== null && hasSearchAreaChanged(previous.bounds, readBounds(map), previous.level, map.getLevel())
+      setAreaChanged(changed)
+      if (changed) onSelect(null)
     }
-  }, [instance, shops])
+    maps.event.addListener(map, 'dragend', onMove)
+    maps.event.addListener(map, 'zoom_changed', onMove)
+    const bounds = readBounds(map)
+    searchedArea.current = { bounds, level: map.getLevel() }
+    onSearchArea(bounds)
+    return () => {
+      maps.event.removeListener(map, 'dragend', onMove)
+      maps.event.removeListener(map, 'zoom_changed', onMove)
+    }
+  }, [instance, onSelect, onSearchArea])
 
-  return <div className="neighborhood-map" aria-label="성수동 가게 지도">
+  useEffect(() => {
+    const shop = shops.find((item) => item.id === selectedId)
+    if (instance && shop) {
+      instance.map.relayout()
+      instance.map.setCenter(new instance.maps.LatLng(shop.latitude, shop.longitude))
+    }
+  }, [instance, shops, selectedId])
+
+  return <div className="neighborhood-map" aria-label={`${DEMO_AREA_LABEL} 주변 가게 지도`} inert={expanded}>
     <div ref={containerRef} className="kakao-map-canvas" />
     {status !== 'ready' && <div className="map-status" role="status">
       <Icon name="pin" size={24} />
@@ -30,11 +80,12 @@ export function ShopMap({ shops, reservations }: { shops: Shop[]; reservations: 
     </div>}
     {instance && shops.map((shop) => {
       const slot = getAvailableSlots(shop, reservations)[0]
-      return slot ? <ShopMapMarker key={shop.id} instance={instance} shop={shop} slot={slot} /> : null
+      return slot ? <ShopMapMarker key={shop.id} instance={instance} shop={shop} slot={slot} selected={shop.id === selectedId} onSelect={onSelect} /> : null
     })}
     {status === 'ready' && <>
-      <span className="map-caption">가게 위치·예약은 시연용이에요</span>
-      <span className="map-legend"><i />코랄색은 빈자리 특가</span>
+      <span className="map-caption">반경 {DEMO_RADIUS_KM}km · 샘플 가게</span>
+      {areaChanged && <button className="map-search-area" onClick={searchArea}><Icon name="refresh" size={17} />이 지역 재검색</button>}
+      {instance && <UserLocation instance={instance} onLocate={searchArea} />}
     </>}
   </div>
 }

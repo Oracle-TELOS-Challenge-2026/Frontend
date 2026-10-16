@@ -18,6 +18,10 @@ export function useSheetDrag(expanded: boolean, onExpandedChange: (expanded: boo
       }
       pointerStart.current = null
     },
+    onPointerCancel: () => {
+      pointerStart.current = null
+      dragged.current = false
+    },
     onClick: () => {
       if (!dragged.current) onExpandedChange(!expanded)
       dragged.current = false
