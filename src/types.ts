@@ -34,6 +34,7 @@ export interface Reservation extends Slot {
   duration: number
   status: 'confirmed' | 'completed'
   createdAt: string
+  hiddenFromCustomer?: boolean
 }
 
 export interface WaitlistItem {
@@ -86,6 +87,7 @@ export interface DemoProps extends DemoState {
   onWaitlist: (shopId: string, preferredDate: string, preferredTime: string) => boolean
   onUpdateWaitlist: (id: string, preferredDate: string, preferredTime: string) => boolean
   onRemoveWaitlist: (id: string) => void
+  onRemoveReservation: (id: string) => void
   onPublish: (id: string, service: string, mode: DiscountMode, value: number) => boolean
   onSendMessage: (conversationId: string, body: string, role: Role) => void
   onReadConversation: (id: string) => void

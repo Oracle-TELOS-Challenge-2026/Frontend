@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createDemoState, publishCancellation, reserveSlot, validWaitPreference } from '../model'
+import { createDemoState, publishCancellation, removeReservationHistory, reserveSlot, validWaitPreference } from '../model'
 import type { DemoProps } from '../model'
 
 export function useDemo() {
@@ -22,6 +22,7 @@ export function useDemo() {
       setState((current) => ({ ...current, waitlist: current.waitlist.map((item) => item.id === id ? { ...item, preferredDate, preferredTime } : item) })); notify('알림 받을 시간을 변경했어요.'); return true
     },
     onRemoveWaitlist: (id) => { setState((current) => ({ ...current, waitlist: current.waitlist.filter((item) => item.id !== id) })); notify('빈자리 알림 신청을 취소했어요.') },
+    onRemoveReservation: (id) => { const next = removeReservationHistory(state, id); if (!next) { notify('삭제할 수 있는 지난 예약내역이 아니에요.'); return } setState(next); notify('지난 예약내역을 삭제했어요.') },
     onPublish: (id, service, mode, value) => { const next = publishCancellation(state, id, service, mode, value); if (!next) { notify('시술 내용과 할인 금액, 예약 가능 여부를 확인해 주세요.'); return false } setState(next); notify('빈자리를 공개했어요! 고객 지도에서도 볼 수 있어요.'); return true },
     onSendMessage: (conversationId, body, sender) => { if (!body.trim() || body.trim().length > 2000) return; setState((current) => ({ ...current, conversations: current.conversations.map((item) => item.id === conversationId ? { ...item, unread: sender === 'customer' ? item.unread + 1 : item.unread, messages: [...item.messages, { id: crypto.randomUUID(), sender, body: body.trim(), sentAt: new Date().toISOString() }] } : item) })) },
     onReadConversation: (id) => setState((current) => ({ ...current, conversations: current.conversations.map((item) => item.id === id && item.unread ? { ...item, unread: 0 } : item) })),

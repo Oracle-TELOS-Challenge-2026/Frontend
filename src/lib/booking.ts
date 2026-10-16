@@ -25,6 +25,13 @@ export function reserveSlot(state: DemoState, shopId: string, startsAt: string):
   return { ...state, reservations: [...state.reservations, reservation], waitlist: state.waitlist.filter((item) => !(item.shopId === shopId && startsAt.startsWith(item.preferredDate) && startsAt.slice(11, 16) === item.preferredTime)) }
 }
 
+export function removeReservationHistory(state: DemoState, id: string): DemoState | null {
+  const reservation = state.reservations.find((item) => item.id === id)
+  if (!reservation || reservation.customerId !== CUSTOMER_ID || reservation.hiddenFromCustomer || !(reservation.status === 'completed' || reservation.startsAt < DEMO_NOW)) return null
+  // 고객 내역을 지워도 사장님 예약 기록과 시간 점유 정보는 보존한다.
+  return { ...state, reservations: state.reservations.map((item) => item.id === id ? { ...item, hiddenFromCustomer: true } : item) }
+}
+
 export function publishCancellation(state: DemoState, id: string, service: string, mode: DiscountMode, value: number): DemoState | null {
   const cancellation = state.cancellations.find((item) => item.id === id)
   if (!cancellation || cancellation.publishedAt || !service.trim() || service.trim().length > 160 || new Date(cancellation.startsAt) < new Date(DEMO_NOW)) return null

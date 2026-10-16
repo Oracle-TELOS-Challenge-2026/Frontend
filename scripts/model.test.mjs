@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createDemoState, DEMO_DAY } from '../src/data/demo.ts'
-import { discountPrice, getAvailableSlots, publishCancellation, reserveSlot, validWaitPreference } from '../src/lib/booking.ts'
+import { createDemoState, CUSTOMER_ID, DEMO_DAY, DEMO_NOW } from '../src/data/demo.ts'
+import { discountPrice, getAvailableSlots, publishCancellation, removeReservationHistory, reserveSlot, validWaitPreference } from '../src/lib/booking.ts'
 
 test('wait preferences require a real calendar date and a current or future time in Seoul', () => {
   for (const [date, time] of [[DEMO_DAY, '14:20'], [DEMO_DAY, '14:21'], ['2026-10-17', '00:00'], ['2028-02-29', '09:00']]) {
@@ -73,6 +73,43 @@ test('booking removes only the wait request matching the shop, date, and time', 
   assert.ok(booked)
   assert.deepEqual(booked.waitlist.map((item) => item.id), ['wait-2', 'other-date', 'other-time', 'other-shop'])
   assert.equal(state.waitlist.length, 5)
+})
+
+test('removing past history hides only the customer record and preserves shared reservation data', () => {
+  const state = createDemoState()
+  const original = structuredClone(state)
+  const removed = removeReservationHistory(state, 'res-3')
+  assert.ok(removed)
+  assert.equal(removed.reservations.length, state.reservations.length)
+  assert.deepEqual(removed.reservations.find((item) => item.id === 'res-3'), { ...state.reservations.find((item) => item.id === 'res-3'), hiddenFromCustomer: true })
+  assert.deepEqual(removed.reservations.filter((item) => item.customerId === CUSTOMER_ID && !item.hiddenFromCustomer).map((item) => item.id), ['res-1', 'res-2'])
+  assert.deepEqual(removed.reservations.filter((item) => item.id !== 'res-3'), state.reservations.filter((item) => item.id !== 'res-3'))
+  assert.equal(removed.shops, state.shops)
+  assert.equal(removed.waitlist, state.waitlist)
+  assert.equal(removed.cancellations, state.cancellations)
+  assert.equal(removed.conversations, state.conversations)
+  assert.deepEqual(state, original)
+  assert.equal(removeReservationHistory(removed, 'res-3'), null)
+})
+
+test('history removal rejects missing IDs, other customers, upcoming reservations and the current start time', () => {
+  const state = createDemoState()
+  for (const id of ['missing', 'res-4', 'res-1', 'res-2']) {
+    assert.equal(removeReservationHistory(state, id), null)
+  }
+  const current = { ...state, reservations: [{ ...state.reservations[0], startsAt: DEMO_NOW }] }
+  assert.equal(removeReservationHistory(current, 'res-1'), null)
+})
+
+test('hiding a past confirmed reservation still blocks its occupied time', () => {
+  const state = createDemoState()
+  const started = { ...state, reservations: [{ ...state.reservations[0], startsAt: `${DEMO_DAY}T14:00:00+09:00` }] }
+  const shop = { ...state.shops[0], slots: [{ ...state.shops[0].slots[0], startsAt: `${DEMO_DAY}T14:30:00+09:00` }] }
+  const removed = removeReservationHistory(started, 'res-1')
+  assert.ok(removed)
+  assert.equal(removed.reservations[0].status, 'confirmed')
+  assert.deepEqual(getAvailableSlots(shop, started.reservations), [])
+  assert.deepEqual(getAvailableSlots(shop, removed.reservations), [])
 })
 
 test('publishing a cancellation creates a bookable discounted slot once', () => {
