@@ -28,6 +28,16 @@ self.addEventListener('notificationclick', (event) => {
 self.addEventListener('install', (event) => event.waitUntil(self.skipWaiting()))
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
 
+// SDK 자동 알림과 직접 표시하는 알림 모두 발송자가 지정한 이미지 대신 빈틈 로고를 사용한다.
+const logo = '/images/bintime-mascot-coral.png'
+const showNotification = self.registration.showNotification.bind(self.registration)
+self.registration.showNotification = (title, options = {}) => showNotification(title, {
+  ...options,
+  icon: logo,
+  image: logo,
+  badge: logo,
+})
+
 importScripts('https://www.gstatic.com/firebasejs/13.0.0/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/13.0.0/firebase-messaging-compat.js')
 
@@ -42,7 +52,6 @@ if (Object.values(config).every(Boolean)) {
     if (!data.title && !data.body) return
     return self.registration.showNotification(data.title || '빈틈', {
       body: data.body || '',
-      icon: '/favicon.svg',
       tag: data.notificationId || payload.messageId,
       data: { bintime: true, url: notificationUrl(data.url, data.shopId) },
     })

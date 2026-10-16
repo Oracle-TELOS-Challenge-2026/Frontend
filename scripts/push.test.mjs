@@ -21,13 +21,20 @@ function loadWorker(windows = [], configured = true) {
   const imports = []
   let backgroundMessage
   let initialized = false
+  const registration = {
+    showNotification(title, options) {
+      assert.equal(this, registration)
+      notifications.push({ title, ...options })
+      return Promise.resolve()
+    },
+  }
   const query = configured ? '?apiKey=public-key&projectId=project&messagingSenderId=123&appId=app-id' : ''
   runInNewContext(workerSource, {
     URL,
     self: {
       location: { origin, protocol: 'https:', href: `${origin}/firebase-messaging-sw.js${query}` },
       addEventListener: (type, listener) => listeners.set(type, listener),
-      registration: { showNotification: (title, options) => notifications.push({ title, ...options }) },
+      registration,
       clients: {
         matchAll: async () => windows,
         openWindow: async (url) => opened.push(url),
@@ -41,7 +48,7 @@ function loadWorker(windows = [], configured = true) {
     },
   })
   return {
-    initialized, imports, notifications, opened,
+    initialized, imports, notifications, opened, registration,
     receive: (payload) => backgroundMessage(payload),
     click: async (data) => {
       let pending
@@ -117,8 +124,33 @@ test('background notifications avoid SDK duplicates and display data-only conten
   assert.equal(notification.tag, 'notice-1')
   assert.equal(notification.data.url, `${origin}/customer/shops/shop%2F1`)
   assert.equal(notification.data.bintime, true)
+  assert.equal(notification.icon, '/images/bintime-mascot-coral.png')
+  assert.equal(notification.image, notification.icon)
   await worker.click(notification.data)
   assert.deepEqual(worker.opened, [`${origin}/customer/shops/shop%2F1`])
+})
+
+test('SDK notifications keep their content and click data while all imagery uses the BinTime logo', async () => {
+  const worker = loadWorker()
+  const options = {
+    body: '예약 가능', tag: 'notice-1',
+    icon: 'https://external.example/icon.png',
+    image: 'https://external.example/banner.png',
+    badge: 'https://external.example/badge.png',
+    data: { FCM_MSG: { data: { url: '/customer/waitlist' } } },
+  }
+  const result = worker.registration.showNotification('빈자리 알림', options)
+  assert.ok(result instanceof Promise)
+  await result
+  const logo = '/images/bintime-mascot-coral.png'
+  assert.deepEqual(worker.notifications, [{ title: '빈자리 알림', ...options, icon: logo, image: logo, badge: logo }])
+  assert.equal(options.image, 'https://external.example/banner.png')
+  await worker.click(worker.notifications[0].data)
+  assert.deepEqual(worker.opened, [`${origin}/customer/waitlist`])
+  await worker.registration.showNotification('이미지 없는 알림')
+  assert.equal(worker.notifications[1].icon, logo)
+  const file = readFileSync(new URL(`../public${logo}`, import.meta.url))
+  assert.equal(file.subarray(1, 4).toString(), 'PNG')
 })
 
 test('notification clicks allow same-origin destinations and reject unsafe links', async () => {
