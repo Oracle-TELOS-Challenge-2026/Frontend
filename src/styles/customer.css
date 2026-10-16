@@ -11,7 +11,7 @@
 .search-clear, .map-role-switch { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; background: none; color: var(--muted); border-radius: 12px; }
 .map-role-switch { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
 .customer-categories { display: flex; gap: 6px; margin-top: 12px; overflow-x: auto; scrollbar-width: none; }
-.customer-category { flex: 1 0 auto; min-height: 44px; padding: 8px; border-radius: 14px; background: var(--soft-surface); color: var(--ink); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; transition: background .15s, color .15s; }
+.customer-category { flex: 0 0 auto; min-height: 44px; padding: 8px; border-radius: 14px; background: var(--soft-surface); color: var(--ink); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; transition: background .15s, color .15s; }
 .customer-category.active { color: var(--on-primary); background: var(--primary); }
 .neighborhood-map { position: relative; flex: 1; min-height: 0; margin-bottom: var(--sheet-height); overflow: clip; }
 .kakao-map-canvas { position: absolute; inset: 0; z-index: 0; }
