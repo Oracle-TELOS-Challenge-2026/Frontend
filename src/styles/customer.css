@@ -118,6 +118,9 @@
 .customer-dialog label { display: block; margin-top: 15px; font-size: 12px; font-weight: 600; }
 .customer-dialog label input { display: block; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 12px; margin-top: 7px; color: var(--ink); background: #fff; min-height: 45px; }
 .customer-dialog-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; margin-top: 25px; }
+.reservation-summary { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 16px 14px; margin: 24px 0; font-size: 14px; line-height: 1.6; }
+.reservation-summary dt { color: var(--muted); }
+.reservation-summary dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 @media (max-width: 370px) {
   .customer-toolbar { padding-inline: 16px; }
   .customer-categories { gap: 5px; }
