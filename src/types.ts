@@ -77,11 +77,24 @@ export interface Cancellation {
   price?: number
 }
 
+export interface ChatBookingInput {
+  service: string
+  startsAt: string
+  duration: number
+  price: number
+}
+
+export interface ChatBookingProposal extends ChatBookingInput {
+  sourceMessageId: string
+  reservationId?: string
+}
+
 export interface Message {
   id: string
   sender: Role
   body: string
   sentAt: string
+  proposal?: ChatBookingProposal
 }
 
 export interface Conversation {
@@ -112,4 +125,7 @@ export interface DemoProps extends DemoState {
   onPublish: (id: string, service: string, mode: DiscountMode, value: number) => boolean
   onSendMessage: (conversationId: string, body: string, role: Role) => void
   onReadConversation: (id: string) => void
+  onStartDemoConversation: () => string | null
+  onProposeBooking: (conversationId: string, sourceMessageId: string, input: ChatBookingInput) => boolean
+  onConfirmBooking: (conversationId: string, messageId: string) => boolean
 }

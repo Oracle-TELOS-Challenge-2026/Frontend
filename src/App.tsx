@@ -1,3 +1,4 @@
+import { startTransition } from 'react'
 import { useEffect } from 'react'
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
@@ -19,6 +20,7 @@ import { Registration } from './pages/owner/RegistrationPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { PreferencesPage } from './pages/PreferencesPage'
 import { accountStartPath } from './lib/account'
+import { CUSTOMER_ID } from './model'
 import type { AccountState, Role } from './types'
 import './styles/customer.css'
 import './styles/owner.css'
@@ -56,7 +58,15 @@ function App() {
   function enterRole(role: Role) {
     if (selectRole(role)) navigate(accountStartPath({ ...account, role }), { replace: true })
   }
-  const switchRole = () => enterRole(account.role === 'owner' ? 'customer' : 'owner')
+  function switchRole() {
+    const role = account.role === 'owner' ? 'customer' : 'owner'
+    const conversation = props.conversations.find((item) => item.shopId === account.shop?.id && item.customerId === CUSTOMER_ID && (location.pathname === `/owner/chat/${item.id}` || location.pathname === `/customer/chat/${item.shopId}`))
+    if (!conversation) { enterRole(role); return }
+    // 역할과 경로를 함께 전환해야 이전 경로의 RoleGate가 홈으로 돌려보내지 않는다.
+    startTransition(() => {
+      if (selectRole(role)) navigate(role === 'owner' ? `/owner/chat/${conversation.id}` : `/customer/chat/${conversation.shopId}`, { replace: true })
+    })
+  }
 
   return <AppLayout toast={showStorageError ? { text: error, id: 0 } : toast} hasUnread={hasUnread} onSwitch={switchRole}>
     <Routes>
@@ -69,7 +79,7 @@ function App() {
         <Route path="/customer/waitlist" element={<WaitlistPage {...props} />} />
         <Route path="/customer/reservations" element={<ReservationsPage {...props} />} />
         <Route path="/customer/shops/:id" element={<ShopDetail {...props} />} />
-        <Route path="/customer/chat/:id" element={<ChatPage {...props} role="customer" />} />
+        <Route path="/customer/chat/:id" element={<ChatPage key={location.pathname} {...props} role="customer" />} />
         <Route path="/customer/profile" element={<ProfilePage role="customer" shop={account.shop} preferences={account.preferences} push={push} />} />
         <Route path="/customer/profile/preferences" element={<PreferencesPage value={account.preferences} onSave={savePreferences} error={error} />} />
       </Route>
@@ -77,7 +87,7 @@ function App() {
         <Route path="/owner" element={<OwnerHome {...props} />} />
         <Route path="/owner/alerts" element={<OwnerAlerts {...props} />} />
         <Route path="/owner/chats" element={<OwnerChats {...props} />} />
-        <Route path="/owner/chat/:id" element={<ChatPage {...props} role="owner" />} />
+        <Route path="/owner/chat/:id" element={<ChatPage key={location.pathname} {...props} role="owner" />} />
         <Route path="/owner/profile" element={<ProfilePage role="owner" shop={account.shop} preferences={account.preferences} push={push} />} />
       </Route>
       <Route path="*" element={<Navigate to={startPath} replace />} />

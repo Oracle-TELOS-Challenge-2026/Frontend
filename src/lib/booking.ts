@@ -8,7 +8,12 @@ export function validWaitPreference(date: string, time: string): boolean {
 }
 
 export function getAvailableSlots(shop: Shop, reservations: Reservation[]) {
-  return shop.slots.filter((slot) => new Date(slot.startsAt) >= new Date(DEMO_NOW) && !reservations.some((reservation) => reservation.shopId === shop.id && reservation.status === 'confirmed' && new Date(slot.startsAt).getTime() < new Date(reservation.startsAt).getTime() + reservation.duration * 60000 && new Date(slot.startsAt).getTime() + shop.duration * 60000 > new Date(reservation.startsAt).getTime())).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+  return shop.slots.filter((slot) => isBookingTimeAvailable(reservations, shop.id, slot.startsAt, shop.duration)).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+}
+
+export function isBookingTimeAvailable(reservations: Reservation[], shopId: string, startsAt: string, duration: number): boolean {
+  const start = Date.parse(startsAt)
+  return Number.isFinite(start) && start >= Date.parse(DEMO_NOW) && Number.isInteger(duration) && duration > 0 && !reservations.some((reservation) => reservation.shopId === shopId && reservation.status === 'confirmed' && start < Date.parse(reservation.startsAt) + reservation.duration * 60000 && start + duration * 60000 > Date.parse(reservation.startsAt))
 }
 
 export function discountPrice(originalPrice: number, mode: DiscountMode, value: number): number | null {

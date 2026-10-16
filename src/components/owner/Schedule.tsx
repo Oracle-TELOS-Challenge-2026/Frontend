@@ -10,8 +10,8 @@ export function OwnerSchedule({ bookings, day }: { bookings: Reservation[]; day:
   const [selectedBooking, setSelectedBooking] = useState<Reservation | null>(null)
   const firstHour = Math.min(9, ...bookings.map((item) => Number(timeLabel(item.startsAt).slice(0, 2))))
   const lastHour = Math.max(20, ...bookings.map((item) => {
-    const [hour, minute] = timeLabel(bookingEnd(item)).split(':').map(Number)
-    return Math.ceil(hour + minute / 60)
+    const [hour, minute] = timeLabel(item.startsAt).split(':').map(Number)
+    return Math.ceil(hour + (minute + item.duration) / 60)
   }))
   const hourHeight = 72
 

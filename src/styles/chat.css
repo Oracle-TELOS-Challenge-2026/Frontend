@@ -10,6 +10,7 @@
 }
 
 .chat-heading {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -49,6 +50,7 @@
 }
 
 .chat-demo-notice {
+  flex-shrink: 0;
   text-align: center;
   background: var(--soft-surface);
   color: var(--primary-dark);
@@ -129,6 +131,7 @@
 }
 
 .chat-composer {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -142,6 +145,7 @@
 }
 
 .chat-composer input {
+  min-width: 0;
   flex: 1;
   border: 1px solid var(--line);
   background: var(--background);
@@ -169,6 +173,96 @@
 
 .send-button:active:not(:disabled) {
   transform: scale(.96);
+}
+
+.chat-booking-card {
+  width: 280px;
+  max-width: 100%;
+  padding: 18px;
+  border: 1px solid var(--primary);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.chat-booking-card h2 {
+  margin: 12px 0;
+  font-size: 15px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.chat-booking-card dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 9px 12px;
+  margin-bottom: 16px;
+  font-size: 12px;
+}
+
+.chat-booking-card dt,
+.chat-booking-card small {
+  color: var(--muted);
+}
+
+.chat-booking-card dd {
+  text-align: right;
+}
+
+.chat-booking-card .button,
+.chat-suggestion > .button {
+  width: 100%;
+}
+
+.chat-booking-card small {
+  display: block;
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.chat-suggestion {
+  flex-shrink: 0;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--soft-surface);
+}
+
+.chat-suggestion > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.chat-suggestion .icon-button {
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+}
+
+.chat-suggestion p {
+  margin: 6px 0 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.chat-request-quote {
+  margin-top: 16px;
+  padding: 12px 15px;
+  border-left: 3px solid var(--primary);
+  background: var(--soft-surface);
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.chat-review-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
 }
 
 @media (max-width: 480px) {

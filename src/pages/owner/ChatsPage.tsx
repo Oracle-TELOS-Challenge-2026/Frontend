@@ -1,13 +1,15 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Icon } from '../../components/Icon'
-import { dateLabel, DEMO_DAY, timeLabel } from '../../model'
+import { CUSTOMER_ID, dateLabel, DEMO_DAY, timeLabel } from '../../model'
 import type { DemoProps } from '../../model'
 
-export function OwnerChats({ conversations, ownerShop, onReadConversation }: DemoProps) {
+export function OwnerChats({ conversations, ownerShop, onReadConversation, onStartDemoConversation }: DemoProps) {
+  const navigate = useNavigate()
   const chats = conversations.filter((item) => item.shopId === ownerShop?.id).sort((a, b) => Date.parse(b.messages.at(-1)?.sentAt ?? '1970-01-01') - Date.parse(a.messages.at(-1)?.sentAt ?? '1970-01-01'))
   return <div className="page owner-page">
     <p className="eyebrow">설레는 만남의 시작</p><h1 className="page-heading">고객 채팅</h1>
     <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>궁금한 시술부터 예약 이야기까지, 편하게 나눠요.</p>
+    <button type="button" className="button secondary" style={{ marginTop: 20 }} onClick={() => { const id = onStartDemoConversation(); if (id) navigate(`/owner/chat/${id}`) }}><Icon name="chat" size={18} />{chats.some((chat) => chat.customerId === CUSTOMER_ID) ? '예약 상담 데모 이어하기' : '예약 상담 데모 시작'}</button>
     <div className="owner-conversation-list">
       {chats.map((chat) => {
         const latest = chat.messages.at(-1)

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Icon } from '../../components/Icon'
 import { OwnerSchedule } from '../../components/owner/Schedule'
 import { dateLabel, DEMO_DAY } from '../../model'
@@ -8,8 +9,12 @@ const dayAt = (day: string, offset: number) => new Date(Date.parse(`${day}T00:00
 const demoWeekStart = dayAt(DEMO_DAY, -((new Date(`${DEMO_DAY}T00:00:00Z`).getUTCDay() + 6) % 7))
 
 export function OwnerHome({ reservations, ownerShop }: DemoProps) {
-  const [selectedDay, setSelectedDay] = useState(DEMO_DAY)
-  const [weekStart, setWeekStart] = useState(demoWeekStart)
+  const [searchParams] = useSearchParams()
+  const requestedDay = searchParams.get('date') ?? ''
+  const requestedTime = Date.parse(`${requestedDay}T00:00:00Z`)
+  const initialDay = /^\d{4}-\d{2}-\d{2}$/.test(requestedDay) && Number.isFinite(requestedTime) && new Date(requestedTime).toISOString().slice(0, 10) === requestedDay ? requestedDay : DEMO_DAY
+  const [selectedDay, setSelectedDay] = useState(initialDay)
+  const [weekStart, setWeekStart] = useState(() => dayAt(initialDay, -((new Date(`${initialDay}T00:00:00Z`).getUTCDay() + 6) % 7)))
   const bookings = reservations.filter((item) => item.shopId === ownerShop?.id && item.startsAt.startsWith(selectedDay)).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
   const confirmed = bookings.filter((item) => item.status === 'confirmed')
 
