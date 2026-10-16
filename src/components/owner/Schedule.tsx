@@ -27,7 +27,7 @@ export function OwnerSchedule({ bookings, day }: { bookings: Reservation[]; day:
       </div>
       {selectedBooking && <Modal className="owner-dialog" title="예약 상세" onClose={() => setSelectedBooking(null)}>
         <p className="owner-dialog-date">{dateLabel(selectedBooking.startsAt)} · {timeLabel(selectedBooking.startsAt)} – {timeLabel(bookingEnd(selectedBooking))}</p>
-        <span className={`badge ${selectedBooking.status === 'confirmed' ? 'coral' : ''}`}>{selectedBooking.status === 'confirmed' ? '예약 확정' : '시술 완료'}</span>
+        <span className="badge">{selectedBooking.status === 'confirmed' ? '예약 확정' : '시술 완료'}</span>
         <dl className="owner-booking-detail"><dt>고객</dt><dd>{selectedBooking.customerName} 고객님</dd><dt>시술</dt><dd>{selectedBooking.service}</dd><dt>소요 시간</dt><dd>{selectedBooking.duration}분</dd><dt>예약 금액</dt><dd>{money(selectedBooking.price)}</dd></dl>
         <button type="button" className="button" style={{ width: '100%' }} onClick={() => setSelectedBooking(null)}>확인했어요</button>
       </Modal>}

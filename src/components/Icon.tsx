@@ -1,45 +1,40 @@
-const paths = {
-  home: 'm3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z',
-  bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4',
-  calendar: 'M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2ZM7 2v4m10-4v4M3 10h18m-14 4h3m4 0h3m-10 3h3',
-  chat: 'M21 11a8 8 0 0 1-8 8H7l-5 3 1.8-6A8 8 0 1 1 21 11ZM7 10h10m-10 4h6',
-  search: 'M20 20l-5-5m2-6a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z',
-  pin: 'M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0ZM15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
-  'arrow-left': 'm14 5-7 7 7 7M7 12h14',
-  'chevron-right': 'm9 5 7 7-7 7',
-  'chevron-down': 'm5 9 7 7 7-7',
-  close: 'm6 6 12 12M6 18 18 6',
-  check: 'm5 12 4 4L19 6',
-  send: 'm22 2-7 20-4-9-9-4 20-7ZM11 13 22 2',
-  sparkle: 'm12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z',
-  store: 'M3 10v11h18V10M2 10l2-7h16l2 7c-1 3-4 3-5 0-1 3-4 3-5 0-1 3-4 3-5 0-1 3-4 3-5 0ZM9 21v-7h6v7',
-  user: 'M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 8 0 0 1 16 0v2',
-  clock: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2',
-  plus: 'M12 5v14M5 12h14',
-  minus: 'M5 12h14',
-  scissors: 'm21 3-9 9m0 0 9 9M8 8l4 4-4 4M9 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm0 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
-  heart: 'M20 5c-3-3-6-1-8 1-2-2-5-4-8-1-4 5 2 10 8 15 6-5 12-10 8-15Z',
-  settings: 'M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8ZM12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2',
-  logout: 'M9 3H3v18h6m7-14 5 5-5 5M8 12h13',
+// Lucide SVGs: https://github.com/lucide-icons/lucide (public/lucide-LICENSE.txt).
+const icons = {
+  home: <><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></>,
+  bell: <><path d="M10.268 21a2 2 0 0 0 3.464 0" /><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" /></>,
+  calendar: <><path d="M8 2v3" /><path d="M16 2v3" /><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18" /><path d="M8 13h.01" /><path d="M12 13h.01" /><path d="M16 13h.01" /><path d="M8 17h.01" /><path d="M12 17h.01" /><path d="M16 17h.01" /></>,
+  chat: <><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" /></>,
+  search: <><path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" /></>,
+  list: <><path d="M3 5h.01" /><path d="M3 12h.01" /><path d="M3 19h.01" /><path d="M8 5h13" /><path d="M8 12h13" /><path d="M8 19h13" /></>,
+  locate: <><line x1="2" x2="5" y1="12" y2="12" /><line x1="19" x2="22" y1="12" y2="12" /><line x1="12" x2="12" y1="2" y2="5" /><line x1="12" x2="12" y1="19" y2="22" /><circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="3" /></>,
+  pin: <><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" /><circle cx="12" cy="10" r="3" /></>,
+  'arrow-left': <><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></>,
+  'chevron-right': <><path d="m9 18 6-6-6-6" /></>,
+  'chevron-down': <><path d="m6 9 6 6 6-6" /></>,
+  close: <><path d="M18 6 6 18" /><path d="m6 6 12 12" /></>,
+  check: <><path d="M20 6 9 17l-5-5" /></>,
+  send: <><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" /><path d="m21.854 2.147-10.94 10.939" /></>,
+  sparkle: <><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /></>,
+  store: <><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5" /><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244" /><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05" /></>,
+  user: <><circle cx="12" cy="8" r="5" /><path d="M20 21a8 8 0 0 0-16 0" /></>,
+  clock: <><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>,
+  plus: <><path d="M5 12h14" /><path d="M12 5v14" /></>,
+  minus: <><path d="M5 12h14" /></>,
+  heart: <><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" /></>,
+  settings: <><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></>,
+  logout: <><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /></>,
+  refresh: <><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></>,
+  'grid-2x2': <><path d="M12 3v18" /><path d="M3 12h18" /><rect x="3" y="3" width="18" height="18" rx="2" /></>,
+  scissors: <><circle cx="6" cy="6" r="3" /><path d="M8.12 8.12 12 12" /><path d="M20 4 8.12 15.88" /><circle cx="6" cy="18" r="3" /><path d="M14.8 14.8 20 20" /></>,
+  hand: <><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" /><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" /><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" /><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" /></>,
+  eye: <><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" /><circle cx="12" cy="12" r="3" /></>,
+  sparkles: <><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /><path d="M20 2v4" /><path d="M22 4h-4" /><circle cx="4" cy="20" r="2" /></>,
 }
 
-export function Icon({ name, size = 22, className = '' }: { name: keyof typeof paths; size?: number; className?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><path d={paths[name]} /></svg>
+export function Icon({ name, size = 22, className = '' }: { name: keyof typeof icons; size?: number; className?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">{icons[name]}</svg>
 }
 
 export function Mascot({ className = '' }: { className?: string }) {
-  return <svg className={className} viewBox="0 0 220 230" fill="none" aria-hidden="true">
-    <ellipse cx="110" cy="211" rx="64" ry="10" fill="#e8d7cb" opacity=".45" />
-    <path d="M81 180c-9 9-17 19-12 23 7 5 19-2 29-13M127 187c7 9 18 19 24 14 6-5-3-16-10-23" fill="#F76B53" />
-    <path d="M52 117c-21-3-33 7-29 17 3 7 14 2 30-2m111-14c20-5 33 2 31 12-2 7-16 4-29-1" fill="#FF947E" />
-    <path d="M108 48c-35-24-78 7-73 60 4 51 34 83 76 83s73-34 75-85c2-49-43-79-78-58Z" fill="#FFAC94" />
-    <path d="M108 48c-7 14-8 24-7 34" stroke="#F38B74" strokeWidth="4" strokeLinecap="round" />
-    <path d="M111 49c0-30 15-43 36-38 3 23-12 37-36 38Z" fill="#719879" />
-    <path d="M111 48C98 23 84 21 73 26c2 18 18 27 38 22Z" fill="#A8BE8B" />
-    <ellipse cx="79" cy="119" rx="4" ry="6" fill="#664737" /><ellipse cx="139" cy="119" rx="4" ry="6" fill="#664737" />
-    <path d="M99 129c5 8 15 8 20 0" stroke="#664737" strokeWidth="3.5" strokeLinecap="round" />
-    <ellipse cx="64" cy="132" rx="10" ry="6" fill="#F78174" opacity=".6" /><ellipse cx="154" cy="132" rx="10" ry="6" fill="#F78174" opacity=".6" />
-    <path d="m174 42 3-9 3 9 9 3-9 3-3 9-3-9-9-3 9-3Z" fill="#F3BF62" />
-    <path d="m37 56 2-6 2 6 6 2-6 2-2 6-2-6-6-2 6-2Z" fill="#F3BF62" />
-  </svg>
+  return <img className={`mascot ${className}`} src="/images/bintime-mascot.png" width="1254" height="1254" alt="" draggable={false} />
 }

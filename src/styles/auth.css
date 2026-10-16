@@ -5,17 +5,17 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background: #fff6ee;
+  background: var(--background);
 }
 
-.splash > svg {
+.splash > .mascot {
   width: 145px;
   margin-bottom: 16px;
 }
 
 .splash > p {
   margin-top: 20px;
-  color: #aa8d7b;
+  color: var(--muted);
   font-size: 12px;
   letter-spacing: 2px;
 }
@@ -24,9 +24,9 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #ff9a80;
+  background: var(--primary);
   margin-top: 55px;
-  box-shadow: -17px 0 #ffd9cb,17px 0 #ffd9cb;
+  box-shadow: -17px 0 var(--secondary),17px 0 var(--secondary);
   animation: pulse .8s infinite alternate;
 }
 
@@ -50,9 +50,9 @@
 }
 
 .demo-tag {
-  font-size: 10px;
-  color: #979a90;
-  border: 1px solid #e8eae3;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line);
   border-radius: 20px;
   padding: 6px 9px;
 }
@@ -70,12 +70,12 @@
 }
 
 .login-intro h1 span {
-  color: #f17f67;
+  color: var(--primary);
 }
 
 .login-intro p {
   font-size: 13px;
-  color: #95968f;
+  color: var(--muted);
   line-height: 1.9;
 }
 
@@ -87,12 +87,12 @@
   align-items: center;
   justify-content: center;
   margin: 24px 0;
-  background: #fff5ec;
-  border-radius: 140px 140px 100px 100px;
+  background: var(--soft-surface);
+  border-radius: 32px;
 }
 
-.login-art > svg {
-  width: 210px;
+.login-art > .mascot {
+  width: 238px;
   transform: rotate(5deg);
 }
 
@@ -100,7 +100,7 @@
   position: absolute;
   top: 27px;
   left: 28px;
-  color: #bdc9a1;
+  color: var(--primary);
   font-size: 40px;
   transform: rotate(12deg);
 }
@@ -109,14 +109,14 @@
   position: absolute;
   bottom: 70px;
   right: 23px;
-  color: #efb954;
+  color: var(--accent);
   font-size: 29px;
 }
 
 .art-caption {
   position: absolute;
-  font-size: 10px;
-  box-shadow: 0 4px 14px #7e533c08;
+  font-size: 11px;
+  box-shadow: 0 3px 12px #26233c06;
   z-index: 1;
   white-space: nowrap;
 }
@@ -124,8 +124,8 @@
 .art-caption-one {
   top: 22px;
   right: 12px;
-  background: white;
-  color: #8c7566;
+  background: var(--surface);
+  color: var(--primary-dark);
   padding: 10px 14px;
   border-radius: 13px 13px 2px 13px;
   transform: rotate(6deg);
@@ -134,8 +134,8 @@
 .art-caption-two {
   bottom: 22px;
   left: 16px;
-  background: white;
-  color: #bb7d66;
+  background: var(--surface);
+  color: var(--primary-dark);
   padding: 10px 13px;
   border-radius: 18px;
   display: flex;
@@ -148,28 +148,15 @@
   margin-top: 13px;
 }
 
-.kakao-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  height: 55px;
-  border-radius: 15px;
-  background: #fee500;
-  color: #322b10;
-  font-size: 14px;
-  font-weight: 700;
-  transition: background .15s;
-}
-
-.kakao-button:hover {
-  background: #f4dd00;
+.login-start {
+  width: 100%;
+  min-height: 54px;
 }
 
 .login-bottom > p {
   text-align: center;
-  font-size: 10px;
-  color: #aaa99f;
+  font-size: 11px;
+  color: var(--muted);
   margin-top: 14px;
 }
 
@@ -196,15 +183,20 @@
   display: flex;
   align-items: center;
   gap: 15px;
-  border: 1px solid #f8daca;
-  background: #fff5ed;
-  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 20px;
   padding: 23px 18px;
   margin-bottom: 15px;
+  transition: border-color .15s, transform .15s;
+}
+
+.role-card:active {
+  transform: scale(.99);
 }
 
 .role-card:hover {
-  border-color: var(--accent);
+  border-color: var(--primary);
 }
 
 .role-illustration {
@@ -213,9 +205,9 @@
   justify-content: center;
   width: 55px;
   height: 55px;
-  background: #ffe6d9;
+  background: var(--soft-surface);
   border-radius: 18px;
-  font-size: 30px;
+  color: var(--primary);
   flex-shrink: 0;
 }
 
@@ -230,28 +222,19 @@
   display: block;
   margin-top: 6px;
   font-size: 11px;
-  color: #a08e80;
+  color: var(--muted);
 }
 
 .role-card > svg {
   margin-left: auto;
-  color: #b79f8c;
-}
-
-.owner-role {
-  background: #f5f7ee;
-  border-color: #e0e7d1;
-}
-
-.owner-role .role-illustration {
-  background: #e6ecd8;
+  color: var(--primary);
 }
 
 .role-note {
   display: flex;
   gap: 8px;
   margin: 17px 8px;
-  color: #8e9584;
+  color: var(--muted);
   font-size: 11px;
   line-height: 1.8;
 }
@@ -263,8 +246,8 @@
 .demo-footnote {
   margin: auto 0 5px;
   padding-top: 40px;
-  color: #a6a89e;
-  font-size: 10px;
+  color: var(--muted);
+  font-size: 11px;
   line-height: 1.8;
   text-align: center;
 }
@@ -287,8 +270,8 @@
     margin-top: 20px;
   }
 
-  .login-art > svg {
-    width: 190px;
+  .login-art > .mascot {
+    width: 215px;
   }
 
   .role-intro {
@@ -310,7 +293,7 @@
     margin: 15px 0;
   }
 
-  .login-art > svg {
+  .login-art > .mascot {
     width: 165px;
   }
 

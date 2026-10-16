@@ -16,7 +16,7 @@ export function OwnerAlerts({ cancellations, onPublish }: DemoProps) {
     <div className="owner-list-heading"><h2>취소 · 노쇼 내역 <span>{alerts.length}</span></h2><span>최근 접수순</span></div>
     <div className="owner-alert-list">
       {alerts.map((alert) => <article className="owner-alert-card" key={alert.id}>
-        <div className="owner-alert-top"><span className={`badge ${alert.reason === '노쇼' ? 'coral' : ''}`}>{alert.reason === '노쇼' ? '노쇼 접수' : '예약 취소'}</span><time dateTime={alert.createdAt}>{timeLabel(alert.createdAt)} 접수</time></div>
+        <div className="owner-alert-top"><span className={`badge ${!alert.publishedAt ? 'coral' : ''}`}>{alert.reason === '노쇼' ? '노쇼 접수' : '예약 취소'}</span><time dateTime={alert.createdAt}>{timeLabel(alert.createdAt)} 접수</time></div>
         <div className="owner-alert-date"><Icon name="calendar" /><span>{dateLabel(alert.startsAt)} · {timeLabel(alert.startsAt)}</span></div>
         <h3>{alert.service}</h3><p>{alert.publishedAt ? '지도에서 고객에게 특별한 가격으로 보여요.' : '가능한 시술과 할인 가격을 등록해 주세요.'}</p>
         <div className="owner-alert-bottom"><div>{alert.price !== undefined && <del>{money(alert.originalPrice)}</del>}<strong>{money(alert.price ?? alert.originalPrice)}</strong></div>{alert.publishedAt ? <span className="owner-published"><Icon name="check" />알림 등록 완료</span> : <button className="button small" type="button" onClick={() => setSelected(alert)}><Icon name="bell" />빈자리 알리기</button>}</div>

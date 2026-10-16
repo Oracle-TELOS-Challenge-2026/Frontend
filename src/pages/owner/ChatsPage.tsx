@@ -12,7 +12,7 @@ export function OwnerChats({ conversations, onReadConversation }: DemoProps) {
       {chats.map((chat) => {
         const latest = chat.messages.at(-1)
         return <Link className="owner-conversation" key={chat.id} to={`/owner/chat/${chat.id}`} onClick={() => onReadConversation(chat.id)}>
-          <span className="owner-avatar" aria-hidden="true">{chat.avatar}</span>
+          <span className="owner-avatar" aria-hidden="true"><Icon name="user" size={24} /></span>
           <div className="owner-conversation-copy"><h2>{chat.customerName === '나' ? '체험 고객' : chat.customerName}</h2><p>{latest?.body ?? '첫 인사를 건네보세요.'}</p></div>
           <div className="owner-conversation-meta">{latest && <time dateTime={latest.sentAt}>{latest.sentAt.startsWith(DEMO_DAY) ? timeLabel(latest.sentAt) : dateLabel(latest.sentAt)}</time>}{chat.unread > 0 && <span className="owner-unread" aria-label={`읽지 않은 메시지 ${chat.unread}개`}>{chat.unread}</span>}</div>
         </Link>

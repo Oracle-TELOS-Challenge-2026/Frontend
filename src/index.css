@@ -2,19 +2,24 @@
 
 :root {
   font-family: 'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;
-  color: #30312f;
-  background: #f7f7f4;
+  color: var(--ink);
+  background: var(--background);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --accent: #ff755f;
-  --accent-dark: #bc4738;
-  --peach: #fff0e9;
-  --ink: #30312f;
-  --muted: #777873;
-  --line: #eeefeb;
-  --surface: #fff;
-  --background: #fafaf8;
+  --primary: #6B58D9;
+  --primary-hover: #5946C3;
+  --primary-dark: #5744B5;
+  --secondary: #D9D1FF;
+  --soft-surface: #EDE9FF;
+  --accent: #FF8D79;
+  --accent-dark: #AD4432;
+  --peach: #FFF0EC;
+  --ink: #26233C;
+  --muted: #767087;
+  --line: #E8E4F2;
+  --surface: #FFFFFF;
+  --background: #FAF9FF;
 }
 
 * {
@@ -75,7 +80,7 @@ button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 3px solid #a4bba0;
+  outline: 3px solid var(--primary);
   outline-offset: 4px;
 }
 
@@ -123,21 +128,22 @@ textarea {
   position: relative;
   display: flex;
   flex-direction: column;
-  background: white;
-  box-shadow: 0 0 45px #4e382808;
+  background: var(--surface);
+  box-shadow: 0 0 40px #26233c05;
   flex-shrink: 0;
-  border-left: 1px solid #eeefeb;
-  border-right: 1px solid #eeefeb;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
   overflow: hidden;
 }
 
 .app-content {
+  background: var(--background);
   min-height: 0;
   flex: 1;
   overflow-y: auto;
   overscroll-behavior-y: contain;
   scrollbar-width: thin;
-  scrollbar-color: #e1e2db transparent;
+  scrollbar-color: var(--secondary) transparent;
 }
 
 .app-header {
@@ -148,13 +154,13 @@ textarea {
   align-items: center;
   gap: 12px;
   border-bottom: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
-  color: var(--ink);
+  color: var(--primary);
   font-size: 28px;
   font-weight: 850;
   letter-spacing: -1.7px;
@@ -165,17 +171,20 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent);
+  color: var(--primary);
   margin-right: 5px;
-  transform: rotate(-12deg);
 }
 
-.brand-mark svg {
-  stroke-width: 3;
+.brand-mark img {
+  display: block;
 }
 
-.brand-dot {
-  color: var(--accent);
+.brand-english {
+  color: var(--primary);
+  margin-left: 7px;
+  font-size: .5em;
+  font-weight: 700;
+  letter-spacing: -.3px;
 }
 
 .brand-large {
@@ -198,8 +207,8 @@ textarea {
   gap: 4px;
   margin-left: auto;
   font-size: 11px;
-  color: #777873;
-  background: #f6f6f3;
+  color: var(--muted);
+  background: var(--soft-surface);
   border-radius: 20px;
   padding: 9px 10px;
 }
@@ -210,7 +219,7 @@ textarea {
   display: flex;
   justify-content: space-around;
   border-top: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
   flex-shrink: 0;
   z-index: 20;
 }
@@ -224,7 +233,7 @@ textarea {
   gap: 5px;
   font-size: 10px;
   font-weight: 600;
-  color: #898c85;
+  color: var(--muted);
 }
 
 .nav-item > span {
@@ -234,11 +243,11 @@ textarea {
 }
 
 .nav-item.active {
-  color: var(--accent-dark);
+  color: var(--primary-dark);
 }
 
 .nav-item.active > span {
-  background: var(--peach);
+  background: var(--soft-surface);
 }
 
 .nav-dot {
@@ -268,10 +277,10 @@ textarea {
 
 .desktop-pill {
   display: inline-block;
-  color: var(--accent-dark);
+  color: var(--primary-dark);
   font-size: 12px;
   font-weight: 600;
-  background: #ffede3;
+  background: var(--soft-surface);
   border-radius: 20px;
   padding: 10px 16px;
   margin-bottom: 24px;
@@ -285,15 +294,20 @@ textarea {
 }
 
 .desktop-copy h1 span {
-  color: #e87860;
+  color: var(--primary);
 }
 
 .desktop-copy > p {
   font-size: 15px;
-  color: #8a8c82;
+  color: var(--muted);
   line-height: 1.85;
   margin-top: 21px;
   letter-spacing: -.3px;
+}
+
+.mascot {
+  height: auto;
+  object-fit: contain;
 }
 
 .desktop-mascot {
@@ -307,13 +321,13 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #84877b;
+  color: var(--muted);
   font-size: 12px;
   margin-top: 18px;
 }
 
 .desktop-caption svg {
-  color: #dfab66;
+  color: var(--primary);
 }
 
 .desktop-footer {
@@ -321,12 +335,12 @@ textarea {
   flex-direction: column;
   gap: 8px;
   font-size: 11px;
-  color: #92958b;
+  color: var(--muted);
 }
 
 .desktop-footer small {
   font-size: 10px;
-  color: #a6a89f;
+  color: var(--muted);
 }
 
 .page {
@@ -341,7 +355,7 @@ textarea {
 }
 
 .eyebrow {
-  color: var(--accent-dark);
+  color: var(--primary-dark);
   font-size: 12px;
   font-weight: 650;
   letter-spacing: .1px;
@@ -358,9 +372,9 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: 47px;
+  min-height: 48px;
   padding: 12px 18px;
-  background: var(--accent);
+  background: var(--primary);
   color: #fff;
   border-radius: 14px;
   font-size: 14px;
@@ -370,7 +384,7 @@ textarea {
 }
 
 .button:hover {
-  background: #ed6853;
+  background: var(--primary-hover);
 }
 
 .button:active {
@@ -378,19 +392,19 @@ textarea {
 }
 
 .button.secondary {
-  background: #f6f6f3;
-  color: #555a51;
+  background: var(--soft-surface);
+  color: var(--primary-dark);
 }
 
 .button.secondary:hover {
-  background: #eceee7;
+  background: var(--secondary);
 }
 
 .button.small {
   font-size: 12px;
   min-height: 36px;
   padding: 8px 12px;
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .icon-button {
@@ -400,7 +414,7 @@ textarea {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: #f6f6f3;
+  background: var(--soft-surface);
   color: var(--ink);
   flex-shrink: 0;
 }
@@ -414,8 +428,8 @@ textarea {
   padding: 5px 8px;
   border-radius: 7px;
   line-height: 1.3;
-  background: #f0f3e9;
-  color: #66765c;
+  background: var(--soft-surface);
+  color: var(--primary-dark);
   white-space: nowrap;
 }
 
@@ -444,7 +458,7 @@ textarea {
 
 .form-error {
   font-size: 12px;
-  color: #b94836;
+  color: var(--accent-dark);
   line-height: 1.6;
   margin: 10px 0;
 }
@@ -458,7 +472,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #393d34;
+  background: var(--ink);
   color: white;
   font-size: 12px;
   line-height: 1.6;
@@ -469,17 +483,17 @@ textarea {
 }
 
 .toast svg {
-  color: #b7d3a8;
+  color: var(--secondary);
 }
 
 dialog {
   border: 0;
   color: var(--ink);
-  box-shadow: 0 20px 80px #30312f24;
+  box-shadow: 0 16px 56px #26233c1f;
 }
 
 dialog::backdrop {
-  background: #292b2355;
+  background: #26233c55;
   backdrop-filter: blur(3px);
 }
 
@@ -544,7 +558,12 @@ dialog::backdrop {
     min-height: 650px;
   }
 
-  .desktop-mascot {
+  .mascot {
+  height: auto;
+  object-fit: contain;
+}
+
+.desktop-mascot {
     width: 160px;
     margin-top: 10px;
   }
@@ -585,6 +604,7 @@ dialog::backdrop {
   width: min(440px, calc(100% - 32px));
   max-height: 90dvh;
   overflow-y: auto;
-  border-radius: 24px;
+  border-radius: 20px;
   padding: 26px;
+  background: var(--surface);
 }
