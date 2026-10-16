@@ -1,75 +1,44 @@
-# React + TypeScript + Vite
+# Oracle 해커톤 프론트엔드
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript + Vite 프로젝트입니다.
 
-Currently, two official plugins are available:
+## 로컬 실행
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Node.js 22.12 이상인 22.x와 pnpm 10을 사용합니다.
+로컬 검증 버전은 Node.js 22.19.0, pnpm 10.17.0입니다.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```sh
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+## 배포 전 확인
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```sh
+pnpm lint
+pnpm build
+pnpm preview
 ```
+
+## Vercel 배포
+
+GitHub에 이 저장소를 푸시한 뒤 Vercel의 Add New → Project에서 가져옵니다.
+현재 Git 저장소 루트에 `package.json`이 있으므로 Root Directory는 `.`입니다.
+
+| 설정 | 값 |
+| --- | --- |
+| Framework Preset | Vite |
+| Root Directory | . |
+| Build Command | pnpm build |
+| Output Directory | dist |
+| Install Command | 자동 감지 유지 (Override 끄기) |
+| Node.js Version | 22.x (`package.json`에 지정) |
+
+`pnpm-lock.yaml`을 커밋해 Vercel이 pnpm을 자동 감지하도록 합니다.
+현재 앱은 환경변수 없이 배포할 수 있습니다.
+API 연결 시 필요한 공개 설정은 Vercel 프로젝트의 Environment Variables에 등록합니다.
+`VITE_` 변수는 브라우저에 공개되므로 인증키나 DB 비밀번호를 넣지 않습니다.
+
+공식 문서: [Vite 배포](https://vercel.com/docs/frameworks/frontend/vite),
+[패키지 매니저 자동 감지](https://vercel.com/docs/package-managers),
+[Vite 환경변수](https://vite.dev/guide/env-and-mode).
