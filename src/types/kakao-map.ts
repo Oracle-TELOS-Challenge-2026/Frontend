@@ -21,6 +21,12 @@ export interface KakaoMap {
 
 export interface KakaoMaps {
   load(callback: () => void): void
+  services: {
+    Status: { OK: string; ZERO_RESULT: string; ERROR: string }
+    Geocoder: new () => {
+      addressSearch(address: string, callback: (results: { x: string; y: string; road_address: { address_name: string } | null }[], status: string) => void, options?: { size: number }): void
+    }
+  }
   event: {
     addListener(target: KakaoMap, type: 'dragend' | 'zoom_changed', handler: () => void): void
     removeListener(target: KakaoMap, type: 'dragend' | 'zoom_changed', handler: () => void): void

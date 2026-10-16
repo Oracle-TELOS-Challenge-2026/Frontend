@@ -1,11 +1,15 @@
 export type Role = 'customer' | 'owner'
 export type DiscountMode = 'percent' | 'amount'
+export type CategoryCode = 'NAIL' | 'HAIR' | 'EYELASH' | 'SKIN'
 
 export interface ShopRegistration {
   name: string
+  description?: string
   category: string
   address: string
-  phone: string
+  latitude: number
+  longitude: number
+  openingHours: { dayOfWeek: 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN'; opensAt: string | null; closesAt: string | null; closed: boolean }[]
   service: string
   originalPrice: number
   duration: number
@@ -13,6 +17,8 @@ export interface ShopRegistration {
 
 export interface RegisteredShop extends ShopRegistration {
   id: string
+  serviceId?: string
+  version: number
 }
 
 export interface AccountState {
@@ -21,111 +27,77 @@ export interface AccountState {
   preferences: string
 }
 
+export interface StoreService {
+  id: string
+  name: string
+  category: CategoryCode
+  durationMinutes: number
+  basePrice: number
+  active: boolean
+  version: number
+}
+
 export interface Slot {
+  id: string
+  serviceId: string
   startsAt: string
+  endsAt?: string
   service: string
   price: number
   originalPrice: number
-  cancellationId?: string
+  version?: number
 }
 
 export interface Shop {
   id: string
   name: string
   category: string
+  categoryCode: CategoryCode
   image: string
   address: string
   distance: string
   rating: string
   description: string
   service: string
-  originalPrice: number
-  duration: number
+  originalPrice: number | null
+  duration: number | null
   latitude: number
   longitude: number
   slots: Slot[]
+  services: StoreService[]
 }
 
 export interface Reservation extends Slot {
-  id: string
   shopId: string
-  customerId: string
-  customerName: string
+  shopName: string
+  shopImage: string
   duration: number
-  status: 'confirmed' | 'completed'
+  status: 'CONFIRMED' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW'
   createdAt: string
-  hiddenFromCustomer?: boolean
+  version: number
+  allowedActions: string[]
+}
+
+export interface WaitlistConditions {
+  storeId: string | null
+  category: CategoryCode
+  serviceId: string | null
+  windowStart: string
+  windowEnd: string
+  location: { latitude: number; longitude: number } | null
+  radiusMeters: number | null
+  maxPrice: number | null
+  keywords: string[]
 }
 
 export interface WaitlistItem {
   id: string
-  shopId: string
-  preferredDate: string
-  preferredTime: string
+  status: 'ACTIVE' | 'FULFILLED' | 'CANCELED' | 'EXPIRED'
+  availability: 'WAITING' | 'AVAILABLE' | 'CLOSED'
+  conditions: WaitlistConditions
+  store: { id: string; name: string; imageUrl: string | null } | null
+  service: { id: string; name: string; imageUrl: string | null } | null
+  offers: (Slot & { shopId: string; shopName: string; image: string })[]
   createdAt: string
-}
-
-export interface Cancellation {
-  id: string
-  shopId: string
-  startsAt: string
-  service: string
-  originalPrice: number
-  reason: '예약 취소' | '노쇼'
-  createdAt: string
-  publishedAt?: string
-  price?: number
-}
-
-export interface ChatBookingInput {
-  service: string
-  startsAt: string
-  duration: number
-  price: number
-}
-
-export interface ChatBookingProposal extends ChatBookingInput {
-  sourceMessageId: string
-  reservationId?: string
-}
-
-export interface Message {
-  id: string
-  sender: Role
-  body: string
-  sentAt: string
-  proposal?: ChatBookingProposal
-}
-
-export interface Conversation {
-  id: string
-  shopId: string
-  customerId: string
-  customerName: string
-  avatar: string
-  unread: number
-  messages: Message[]
-}
-
-export interface DemoState {
-  shops: Shop[]
-  reservations: Reservation[]
-  waitlist: WaitlistItem[]
-  cancellations: Cancellation[]
-  conversations: Conversation[]
-}
-
-export interface DemoProps extends DemoState {
-  ownerShop: RegisteredShop | null
-  onReserve: (shopId: string, startsAt: string) => boolean
-  onWaitlist: (shopId: string, preferredDate: string, preferredTime: string) => boolean
-  onUpdateWaitlist: (id: string, preferredDate: string, preferredTime: string) => boolean
-  onRemoveWaitlist: (id: string) => void
-  onRemoveReservation: (id: string) => void
-  onPublish: (id: string, service: string, mode: DiscountMode, value: number) => boolean
-  onSendMessage: (conversationId: string, body: string, role: Role) => void
-  onReadConversation: (id: string) => void
-  onStartDemoConversation: () => string | null
-  onProposeBooking: (conversationId: string, sourceMessageId: string, input: ChatBookingInput) => boolean
-  onConfirmBooking: (conversationId: string, messageId: string) => boolean
+  version: number
 }

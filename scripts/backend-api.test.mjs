@@ -1,98 +1,91 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { BACKEND_API_ORIGIN, BackendApiError, publicApiPath, readPublicApi } from '../src/lib/backend-api.ts'
+import { BACKEND_API_ORIGIN, apiId, requestBackendApi, mutateBackendApi } from '../src/lib/backend-api.ts'
 
 const success = (data = { items: [] }) => ({ resultType: 'SUCCESS', success: { data }, error: null })
-const failure = (code = 'NOT_IMPLEMENTED') => ({ resultType: 'FAILURE', success: null, error: { code, message: '미구현' } })
+const failure = (code = 'REJECTED') => ({ resultType: 'FAILURE', success: null, error: { code, message: '요청 실패' } })
 
-test('public API paths encode identifiers and filters without changing the destination', () => {
-  assert.equal(publicApiPath({ operation: 'categories' }), '/api/v1/stores/categories')
-  const search = new URL(publicApiPath({ operation: 'search', keyword: ' 네일 & ?한글 ' }), BACKEND_API_ORIGIN)
-  assert.equal(search.pathname, '/api/v1/search/stores')
-  assert.deepEqual(Object.fromEntries(search.searchParams), { latitude: '37.51243', longitude: '126.92727', radiusMeters: '5000', limit: '10', keyword: '네일 & ?한글' })
-  assert.equal(new URL(publicApiPath({ operation: 'search', keyword: '  ' }), BACKEND_API_ORIGIN).searchParams.has('keyword'), false)
-  const storeId = 'shop/한 글?x=#'
-  const path = `/api/v1/stores/${encodeURIComponent(storeId)}`
-  assert.equal(publicApiPath({ operation: 'store', storeId }), path)
-  assert.equal(publicApiPath({ operation: 'services', storeId }), `${path}/services?limit=10`)
-  assert.equal(publicApiPath({ operation: 'slots', storeId, date: '2028-02-29' }), `${path}/slots?from=2028-02-29&to=2028-02-29&limit=10`)
+test('opaque IDs are encoded and unsafe path segments are rejected', () => {
+  assert.equal(apiId('store/한 글?x=#'), 'store%2F%ED%95%9C%20%EA%B8%80%3Fx%3D%23')
+  for (const id of ['', ' ', '.', '..', 's'.repeat(65), 'shop\n1', '\ud800']) assert.throws(() => apiId(id), { code: 'INVALID_REQUEST' })
 })
 
-test('invalid identifiers, dates and unsupported operations never send a request', async (t) => {
-  const fetch = t.mock.method(globalThis, 'fetch', () => { throw new Error('must not fetch') })
-  const invalid = [
-    ...[undefined, '', '  ', '.', '..', 's'.repeat(65), 'shop\n1', 'shop\u007f', '\ud800'].map((storeId) => ({ operation: 'store', storeId })),
-    ...[undefined, '', '2026-02-29', '2026-04-31', '2026-13-01', '2026-10-0', '2026-10-16&limit=100'].map((date) => ({ operation: 'slots', storeId: 'shop', date })),
-    { operation: 'delete', storeId: 'shop' },
-  ]
-  for (const request of invalid) await assert.rejects(readPublicApi(request), { name: 'BackendApiError', status: 0, code: 'INVALID_REQUEST' })
-  assert.equal(fetch.mock.callCount(), 0)
-})
-
-test('the five public operations only GET with session credentials and unwrap successful data', async (t) => {
-  const fetch = t.mock.method(globalThis, 'fetch', async (url, options) => {
-    assert.equal(new URL(url).origin, BACKEND_API_ORIGIN)
+test('GET includes session credentials and unwraps data without a request body', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(url, `${BACKEND_API_ORIGIN}/api/v1/stores/categories`)
     assert.equal(options.method, 'GET')
     assert.equal(options.credentials, 'include')
     assert.equal(options.cache, 'no-store')
     assert.deepEqual(options.headers, { Accept: 'application/json' })
     assert.equal(options.body, undefined)
     assert.ok(options.signal instanceof AbortSignal)
-    return Response.json(success({ id: 'from-server' }))
+    return Response.json(success({ items: [] }))
   })
-  for (const operation of ['categories', 'search', 'store', 'services', 'slots']) {
-    await assert.doesNotReject(async () => assert.deepEqual(await readPublicApi({ operation, storeId: 'shop', date: '2026-10-16' }), { id: 'from-server' }))
-  }
-  assert.equal(fetch.mock.callCount(), 5)
+  assert.deepEqual(await requestBackendApi('/api/v1/stores/categories'), { status: 200, data: { items: [] } })
 })
 
-test('501 remains an explicit unimplemented error, including non-JSON error bodies', async (t) => {
-  for (const response of [Response.json(failure(), { status: 501 }), new Response('<html>not implemented</html>', { status: 501 })]) {
-    t.mock.method(globalThis, 'fetch', async () => response)
-    await assert.rejects(readPublicApi({ operation: 'categories' }), (error) => {
-      assert.ok(error instanceof BackendApiError)
-      assert.equal(error.status, 501)
-      assert.match(error.message, /명세만 정의/)
-      return true
-    })
+test('mutations carry JSON, a fresh CSRF token and the caller retry key', async (t) => {
+  const requests = []
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    requests.push({ url, options })
+    return Response.json(success(requests.length % 2 ? { csrfToken: 'csrf' } : { id: 'saved' }))
+  })
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+    await mutateBackendApi('/api/v1/resource', { method, body: { text: '한글' }, idempotencyKey: 'same-retry-key' })
+    const { options } = requests.at(-1)
+    assert.equal(options.method, method)
+    assert.equal(options.headers['X-CSRF-Token'], 'csrf')
+    assert.equal(options.headers['Idempotency-Key'], 'same-retry-key')
+    assert.equal(options.headers['Content-Type'], 'application/json')
+    assert.deepEqual(JSON.parse(options.body), { text: '한글' })
+    assert.equal(new URL(requests.at(-2).url).pathname, '/api/v1/auth/csrf')
   }
 })
 
-test('HTTP errors and a failure envelope with HTTP 200 cannot become success', async (t) => {
-  for (const status of [200, 401, 403, 404, 409, 429, 500]) {
+test('missing or malformed CSRF prevents writes, and an HTTP failure is never retried silently', async (t) => {
+  for (const csrfToken of [undefined, '', ' ', 'bad\nvalue']) {
+    const fetch = t.mock.method(globalThis, 'fetch', async () => Response.json(success({ csrfToken })))
+    await assert.rejects(mutateBackendApi('/api/v1/resource'), { code: 'INVALID_RESPONSE' })
+    assert.equal(fetch.mock.callCount(), 1)
+  }
+  const fetch = t.mock.method(globalThis, 'fetch', async () => Response.json(failure('CSRF_INVALID'), { status: 403 }))
+  await assert.rejects(mutateBackendApi('/api/v1/resource'), { status: 403, code: 'CSRF_INVALID' })
+  assert.equal(fetch.mock.callCount(), 1)
+})
+
+test('204 does not attempt to parse JSON', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => new Response(null, { status: 204 }))
+  assert.deepEqual(await requestBackendApi('/api/v1/resource', { method: 'DELETE' }), { status: 204, data: null })
+})
+
+test('HTTP failures and a failure envelope at HTTP 200 remain failures', async (t) => {
+  for (const status of [200, 400, 401, 403, 404, 409, 429, 500, 501, 503]) {
     t.mock.method(globalThis, 'fetch', async () => Response.json(failure('SERVER_REJECTED'), { status }))
-    await assert.rejects(readPublicApi({ operation: 'categories' }), { name: 'BackendApiError', status, code: 'SERVER_REJECTED' })
+    await assert.rejects(requestBackendApi('/api/v1/resource'), { name: 'BackendApiError', status, code: 'SERVER_REJECTED' })
   }
 })
 
-test('malformed JSON and success envelopes cannot be displayed as valid data', async (t) => {
-  for (const body of ['<html>error</html>', 'null', JSON.stringify({}), JSON.stringify({ resultType: 'SUCCESS', success: {}, error: null }), JSON.stringify(success(null)), JSON.stringify({ ...success(), error: { code: 'ERROR' } }), JSON.stringify({ ...success(), resultType: 'UNKNOWN' })]) {
+test('malformed JSON and success envelopes cannot become valid data', async (t) => {
+  for (const body of ['<html>error</html>', 'null', '{}', JSON.stringify({ resultType: 'SUCCESS', success: {}, error: null }), JSON.stringify(success(null)), JSON.stringify({ ...success(), error: { code: 'ERROR' } }), JSON.stringify({ ...success(), resultType: 'UNKNOWN' })]) {
     t.mock.method(globalThis, 'fetch', async () => new Response(body, { status: 200 }))
-    await assert.rejects(readPublicApi({ operation: 'categories' }), { name: 'BackendApiError', status: 200, code: 'INVALID_RESPONSE' })
+    await assert.rejects(requestBackendApi('/api/v1/resource'), { code: 'INVALID_RESPONSE' })
   }
 })
 
-test('network errors explain connectivity without pretending to have HTTP status', async (t) => {
+test('network failures, cancellation and timeout remain distinct', async (t) => {
   t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('Failed to fetch') })
-  await assert.rejects(readPublicApi({ operation: 'categories' }), { name: 'BackendApiError', status: 0, code: 'NETWORK_ERROR' })
-})
-
-test('caller cancellation works before and during fetch', async (t) => {
+  await assert.rejects(requestBackendApi('/api/v1/resource'), { code: 'NETWORK_ERROR' })
   const fetch = t.mock.method(globalThis, 'fetch', (_url, { signal }) => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true })))
   const stopped = new AbortController()
   stopped.abort()
-  await assert.rejects(readPublicApi({ operation: 'categories' }, stopped.signal), { name: 'AbortError' })
+  await assert.rejects(requestBackendApi('/api/v1/resource', { signal: stopped.signal }), { name: 'AbortError' })
   assert.equal(fetch.mock.callCount(), 0)
   const controller = new AbortController()
-  const pending = readPublicApi({ operation: 'categories' }, controller.signal)
+  const pending = requestBackendApi('/api/v1/resource', { signal: controller.signal })
   controller.abort()
   await assert.rejects(pending, { name: 'AbortError' })
-})
-
-test('a request that exceeds 15 seconds aborts and reports timeout', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
-  t.mock.method(globalThis, 'fetch', (_url, { signal }) => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true })))
-  const pending = assert.rejects(readPublicApi({ operation: 'categories' }), { name: 'BackendApiError', status: 0, code: 'TIMEOUT' })
+  const timeout = assert.rejects(requestBackendApi('/api/v1/resource'), { code: 'TIMEOUT' })
   t.mock.timers.tick(15000)
-  await pending
+  await timeout
 })

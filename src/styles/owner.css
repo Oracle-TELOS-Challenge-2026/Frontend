@@ -15,6 +15,11 @@
 .owner-date-controls .icon-button { width: 36px; height: 36px; }
 .owner-date-controls button:first-child svg { transform: rotate(180deg); }
 .owner-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin-bottom: 24px; }
+.owner-slots { margin-bottom: 28px; }
+.owner-slot-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.owner-slot-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; font-size: 14px; }
+.owner-slot-list p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+.owner-slot-list li > span { white-space: nowrap; }
 .owner-day { display: flex; min-height: 67px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 14px; background: transparent; color: var(--ink); cursor: pointer; transition: background .15s, color .15s; }
 .owner-day span { color: var(--muted); font-size: 11px; }
 .owner-day strong { font-size: 17px; font-weight: 650; }
@@ -95,10 +100,20 @@
 .owner-form-error { margin: 10px 0; color: var(--accent-dark); font-size: 12px; line-height: 1.6; }
 .owner-dialog-note { margin: 12px 0 0; color: var(--muted); font-size: 11px; line-height: 1.7; text-align: center; }
 .owner-form > .button { width: 100%; justify-content: center; }
+.owner-time-button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.owner-time-button > span { color: var(--muted); font-size: 12px; }
 .owner-booking-detail { display: grid; grid-template-columns: 95px 1fr; gap: 17px; margin: 25px 0; font-size: 14px; }
 .owner-booking-detail dt { color: var(--muted); }
 .owner-booking-detail dd { margin: 0; font-weight: 650; }
-.owner-demo-note { margin: 25px 0 0; color: var(--muted); font-size: 11px; text-align: center; }
+.owner-manage-fields { display: grid; gap: 18px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.owner-manage-title { margin-bottom: 18px; font-size: 17px; font-weight: 750; }
+.owner-service-active { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.owner-service-active input { width: 18px; height: 18px; accent-color: var(--primary); }
+.owner-services { margin-top: 36px; padding-top: 24px; border-top: 1px solid var(--line); }
+.owner-service-list { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.owner-service-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; }
+.owner-service-list p { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+.owner-status-confirm { margin: 20px 0; }
 @media (max-width: 370px) {
   .owner-greeting { gap: 12px; }
   .owner-greeting h1 { font-size: 22px; }

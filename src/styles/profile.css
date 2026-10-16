@@ -41,21 +41,45 @@
 .account-notice p { margin-top: 5px; font-size: 11px; line-height: 1.8; }
 .account-error { color: var(--accent-dark); font-size: 13px; line-height: 1.7; }
 .push-settings { margin-top: 22px; }
+.profile-settings { margin-top: 22px; }
+.profile-settings h2 { margin: 0 0 20px; font-size: 18px; }
+.profile-settings h3 { margin: 24px 0 8px; font-size: 14px; }
+.profile-settings .account-form-actions { flex-wrap: wrap; }
+.profile-settings .account-form-actions > .secondary { flex: 1; white-space: nowrap; }
 .push-settings > .account-form-actions { margin-top: 18px; }
 .push-settings .account-form-actions > .secondary { flex: 1; }
-.push-debug { margin-top: 18px; font-size: 12px; line-height: 1.7; }
-.push-debug summary { cursor: pointer; }
-.push-debug code { display: block; overflow-wrap: anywhere; user-select: all; }
-.backend-connection { display: grid; gap: 22px; }
-.backend-connection .account-heading, .backend-connection > .account-notice { margin: 0; }
-.backend-connection .account-card h2 { margin: 0 0 12px; font-size: 16px; }
-.backend-origin, .backend-path { overflow-wrap: anywhere; font-size: 12px; line-height: 1.7; }
-.backend-origin a { text-decoration: underline; }
-.backend-connection details, .backend-connection .account-error { margin-top: 14px; }
-.backend-connection summary { cursor: pointer; font-size: 13px; }
-.backend-connection pre { max-height: 360px; overflow: auto; font-size: 11px; line-height: 1.7; }
 @media (max-width: 370px) {
   .registration-steps li { gap: 4px; font-size: 11px; }
   .account-card { padding: 18px; }
   .account-heading .page-heading { font-size: 23px; }
 }
+
+.registration-hours { margin: 0; padding: 0; border: 0; min-width: 0; }
+.registration-hours > legend { margin-bottom: 12px; font-size: 13px; font-weight: 750; }
+.registration-week { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.registration-day { display: grid; grid-template-columns: 20px 44px minmax(0, 1fr); align-items: center; gap: 10px; padding: 13px 12px; font-size: 13px; }
+.registration-day + .registration-day { border-top: 1px solid var(--line); }
+.registration-day.is-closed { background: var(--background); }
+.registration-day-toggle { padding: 8px 0; border: 1px solid var(--line); border-radius: 9px; background: var(--soft-surface); color: var(--primary-dark); font: inherit; font-weight: 650; cursor: pointer; }
+.registration-day-toggle[aria-pressed="true"] { background: var(--surface); color: var(--muted); }
+.registration-day-times { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 6px; }
+.registration-day-times button { padding: 9px 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
+.registration-day-times > span, .registration-closed-label { color: var(--muted); }
+.registration-hours > p { margin: 0 0 15px; font-size: 12px; line-height: 1.6; }
+.registration-copy-hours { margin-bottom: 12px; font-size: 12px; }
+.registration-time-preview { margin: 20px 0; font-size: 36px; font-weight: 750; text-align: center; font-variant-numeric: tabular-nums; }
+.registration-time-preview span { padding: 0 8px; color: var(--muted); }
+.registration-time-group { margin: 0 0 22px; padding: 0; border: 0; }
+.registration-time-group legend { margin-bottom: 10px; color: var(--muted); font-size: 12px; }
+.registration-time-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; }
+.registration-time-grid button { min-height: 42px; padding: 8px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
+.registration-time-grid button[aria-pressed="true"] { border-color: var(--primary); background: var(--primary); color: var(--on-primary); font-weight: 750; }
+.registration-address-search { display: flex; gap: 8px; }
+.registration-address-search input { min-width: 0; }
+.registration-address-search .button { flex: 0 0 auto; padding: 0 12px; font-size: 12px; }
+.registration-address-results { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.registration-address-results button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); text-align: left; font: inherit; font-size: 13px; cursor: pointer; }
+.registration-address-results button span { flex: 1; }
+.registration-address-results svg { flex-shrink: 0; }
+.registration-address-confirmed { display: flex; align-items: center; gap: 5px; }
+#register-address-error:empty { display: none; }

@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { DEMO_DAY } from '../src/data/demo.ts'
 import { getChatBookingSuggestion } from '../src/lib/chat-suggestion.ts'
 
-const message = (body, id = 'request', sender = 'customer') => ({ id, body, sender, sentAt: '2030-01-01T10:00:00+09:00' })
-const suggestion = (body) => getChatBookingSuggestion([message(body)])
+const now = Date.parse('2026-10-16T14:20:00+09:00')
+const message = (content, id = 'request', role = 'CUSTOMER', createdAt = '2026-10-16T10:00:00+09:00') => ({ id, content, sender: { id: role, role }, createdAt })
+const suggestion = (body) => getChatBookingSuggestion([message(body)], now)
 
-test('extracts supported dates and times using the demo day, not the send time', () => {
+test('extracts supported dates and times using the real message date in Seoul', () => {
   for (const [body, date, time] of [
     ['내일 오후 3시에 젤 네일 예약하고 싶어요', '2026-10-17', '15:00'],
     ['모레 오전 11시 반에 가능할까요?', '2026-10-18', '11:30'],
-    ['오늘 오후 2시 20분에 받고 싶어요', DEMO_DAY, '14:20'],
+    ['오늘 오후 2시 21분에 받고 싶어요', '2026-10-16', '14:21'],
     ['2026-10-20 16:45 예약 가능할까요?', '2026-10-20', '16:45'],
     ['10월 17일 오후 12시에 예약하고 싶어요', '2026-10-17', '12:00'],
     ['10월 18일 오전 12시 5분에 예약할게요', '2026-10-18', '00:05'],
@@ -30,15 +30,15 @@ test('does not suggest rejected or canceled requests and unrelated messages', ()
     '예약 거절할게요', '내일 오후 3시 예약 불가능해요', '내일 예약 못 가요',
     '예약 안 하겠습니다', '예약하지 않을게요', '예약은 오늘 말고 내일로 할게요', '감사합니다',
   ]) assert.equal(suggestion(body), null, body)
-  assert.equal(getChatBookingSuggestion([]), null)
-  assert.equal(getChatBookingSuggestion([message('내일 오후 3시 예약 가능해요', 'owner', 'owner')]), null)
+  assert.equal(getChatBookingSuggestion([], now), null)
+  assert.equal(getChatBookingSuggestion([message('내일 오후 3시 예약 가능해요', 'owner', 'OWNER')], now), null)
 })
 
 test('only the latest customer message is used, so an old request cannot reappear', () => {
   const oldRequest = message('내일 오후 3시에 예약 가능할까요?', 'old')
-  assert.equal(getChatBookingSuggestion([oldRequest, message('감사합니다', 'latest')]), null)
-  assert.equal(getChatBookingSuggestion([oldRequest, message('예약 취소할게요', 'latest'), message('알겠습니다', 'reply', 'owner')]), null)
-  assert.deepEqual(getChatBookingSuggestion([oldRequest, message('모레 오후 4시에 예약하고 싶어요', 'latest'), message('확인할게요', 'reply', 'owner')]), { messageId: 'latest', date: '2026-10-18', time: '16:00' })
+  assert.equal(getChatBookingSuggestion([oldRequest, message('감사합니다', 'latest')], now), null)
+  assert.equal(getChatBookingSuggestion([oldRequest, message('예약 취소할게요', 'latest'), message('알겠습니다', 'reply', 'OWNER')], now), null)
+  assert.deepEqual(getChatBookingSuggestion([oldRequest, message('모레 오후 4시에 예약하고 싶어요', 'latest'), message('확인할게요', 'reply', 'OWNER')], now), { messageId: 'latest', date: '2026-10-18', time: '16:00' })
 })
 
 test('rejects invalid calendar dates, malformed times, and past requests instead of normalizing them', () => {
@@ -49,4 +49,20 @@ test('rejects invalid calendar dates, malformed times, and past requests instead
     '내일 24:00 예약', '내일 15:60 예약', '내일 9:00 예약', '내일 15:0 예약',
     '오늘 오후 2시 19분 예약', '2026-10-15 오후 6시 예약', '10월 15일 예약',
   ]) assert.equal(suggestion(body), null, body)
+})
+
+
+test('recognizes requested phrases with or without spaces', () => {
+  for (const content of ['네일 예약 원합니다', '네일 원합니다', '네일 원합', '네일 원해요 예약', '네일 하고싶어요', '네일 하고 싶어요']) {
+    assert.deepEqual(suggestion(content), { messageId: 'request', date: '', time: '' }, content)
+  }
+})
+
+test('relative dates use the message timestamp across Seoul midnight and year changes', () => {
+  const sentAt = '2026-12-31T15:05:00Z'
+  const instant = Date.parse(sentAt)
+  assert.deepEqual(getChatBookingSuggestion([message('내일 오후 3시에 예약 원합니다', 'request', 'CUSTOMER', sentAt)], instant), { messageId: 'request', date: '2027-01-02', time: '15:00' })
+  assert.deepEqual(getChatBookingSuggestion([message('내일 오후 3시에 예약 원합니다')], Date.parse('2026-10-17T10:00:00+09:00')), { messageId: 'request', date: '2026-10-17', time: '15:00' })
+  assert.equal(getChatBookingSuggestion([message('내일 오후 3시에 예약 원합니다')], Date.parse('2026-10-17T15:00:00+09:00')), null)
+  assert.equal(getChatBookingSuggestion([message('예약 원합니다', 'request', 'CUSTOMER', 'invalid')], now), null)
 })

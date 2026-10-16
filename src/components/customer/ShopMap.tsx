@@ -4,8 +4,8 @@ import { Icon } from '../Icon'
 import { ShopMapMarker } from './ShopMapMarker'
 import { UserLocation } from './UserLocation'
 import { useKakaoMap } from '../../hooks/useKakaoMap'
-import { DEMO_AREA_LABEL, DEMO_RADIUS_KM, getAvailableSlots } from '../../model'
-import type { Reservation, Shop } from '../../model'
+import { getAvailableSlots } from '../../model'
+import type { Shop } from '../../model'
 import { hasSearchAreaChanged, type SearchBounds } from '../../lib/shop-search'
 import type { KakaoMap } from '../../types/kakao-map'
 
@@ -18,14 +18,13 @@ function readBounds(map: KakaoMap): SearchBounds {
 
 interface ShopMapProps {
   shops: Shop[]
-  reservations: Reservation[]
   expanded: boolean
   selectedId?: string
   onSelect: (id: string | null) => void
   onSearchArea: (bounds: SearchBounds) => void
 }
 
-export function ShopMap({ shops, reservations, expanded, selectedId, onSelect, onSearchArea }: ShopMapProps) {
+export function ShopMap({ shops, expanded, selectedId, onSelect, onSearchArea }: ShopMapProps) {
   const { containerRef, instance, status, retry } = useKakaoMap()
   const [areaChanged, setAreaChanged] = useState(false)
   const searchedArea = useRef<{ bounds: SearchBounds; level: number } | null>(null)
@@ -70,7 +69,7 @@ export function ShopMap({ shops, reservations, expanded, selectedId, onSelect, o
     }
   }, [instance, shops, selectedId])
 
-  return <div className="neighborhood-map" aria-label={`${DEMO_AREA_LABEL} 주변 가게 지도`} inert={expanded}>
+  return <div className="neighborhood-map" aria-label="주변 가게 지도" inert={expanded}>
     <div ref={containerRef} className="kakao-map-canvas" />
     {status !== 'ready' && <div className="map-status" role="status">
       <Icon name="pin" size={24} />
@@ -79,11 +78,11 @@ export function ShopMap({ shops, reservations, expanded, selectedId, onSelect, o
       {status === 'error' && <button className="button secondary small" onClick={retry}>다시 시도</button>}
     </div>}
     {instance && shops.map((shop) => {
-      const slot = getAvailableSlots(shop, reservations)[0]
-      return slot ? <ShopMapMarker key={shop.id} instance={instance} shop={shop} slot={slot} selected={shop.id === selectedId} onSelect={onSelect} /> : null
+      const slot = getAvailableSlots(shop)[0]
+      return <ShopMapMarker key={shop.id} instance={instance} shop={shop} slot={slot} selected={shop.id === selectedId} onSelect={onSelect} />
     })}
     {status === 'ready' && <>
-      <span className="map-caption">반경 {DEMO_RADIUS_KM}km · 샘플 가게</span>
+      <span className="map-caption">주변 가게 · 최대 반경 10km</span>
       {areaChanged && <button className="map-search-area" onClick={searchArea}><Icon name="refresh" size={17} />이 지역 재검색</button>}
       {instance && <UserLocation instance={instance} onLocate={searchArea} />}
     </>}

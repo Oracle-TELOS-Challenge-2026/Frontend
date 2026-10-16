@@ -1,3 +1,4 @@
+import { apiId, mutateBackendApi } from './backend-api.ts'
 import type { MessagePayload } from 'firebase/messaging'
 
 export function getPushConfig(env: Record<string, string | undefined>) {
@@ -36,4 +37,18 @@ export function waitForActiveWorker(registration: ServiceWorkerRegistration) {
     worker.addEventListener('statechange', onStateChange)
     onStateChange()
   })
+}
+
+export async function registerPushSubscription(installationId: string) {
+  if (!installationId || installationId.length > 128 || /[\s\p{Cc}]/u.test(installationId)) throw new Error('유효한 알림 수신 정보를 받지 못했어요.')
+  const { data } = await mutateBackendApi('/api/v1/notifications/push-subscriptions', { body: { installationId } })
+  if (typeof data?.id !== 'string' || !data.id.trim()) throw new Error('알림 등록 결과를 확인하지 못했어요.')
+  return data.id
+}
+
+export async function deletePushSubscription(subscriptionId: string, installationId?: string) {
+  const id = subscriptionId || (installationId ? await registerPushSubscription(installationId) : '')
+  if (!id.trim()) throw new Error('해제할 알림 정보를 확인하지 못했어요.')
+  const { status } = await mutateBackendApi(`/api/v1/notifications/push-subscriptions/${apiId(id)}`, { method: 'DELETE' })
+  if (status !== 204) throw new Error('알림 해제 결과를 확인하지 못했어요.')
 }

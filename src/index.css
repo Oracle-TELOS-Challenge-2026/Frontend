@@ -139,12 +139,40 @@ textarea {
 
 .app-content {
   background: var(--background);
+  position: relative;
+  min-width: 0;
   min-height: 0;
   flex: 1;
+  overflow: hidden;
+}
+
+.page-viewport {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--muted) transparent;
+}
+
+.page-viewport.viewport-fixed {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
+.page-viewport > .page {
+  min-height: 100%;
+}
+
+.app-loading {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .app-header {

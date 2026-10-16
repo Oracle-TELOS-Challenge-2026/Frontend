@@ -14,14 +14,18 @@ self.addEventListener('notificationclick', (event) => {
   event.stopImmediatePropagation()
   event.notification.close()
   const url = notificationUrl(message?.fcmOptions?.link || message?.notification?.click_action || message?.data?.url || data?.url, message?.data?.shopId)
+  const notificationId = message?.data?.notificationId || data?.notificationId
+  const validId = typeof notificationId === 'string' && notificationId.trim() && notificationId.length <= 64 && !/\p{Cc}/u.test(notificationId) ? notificationId : undefined
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     const client = windows.find((item) => item.url === url) ?? windows.find((item) => new URL(item.url).origin === self.location.origin)
     if (client) {
-      client.postMessage({ type: 'bintime:notification-click', url })
+      client.postMessage({ type: 'bintime:notification-click', url, ...(validId ? { notificationId: validId } : {}) })
       return client.focus()
     }
-    return self.clients.openWindow(url)
+    const destination = new URL(url)
+    if (validId) destination.searchParams.set('notificationId', validId)
+    return self.clients.openWindow(destination.href)
   })())
 })
 
@@ -29,13 +33,13 @@ self.addEventListener('install', (event) => event.waitUntil(self.skipWaiting()))
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
 
 // SDK 자동 알림과 직접 표시하는 알림 모두 발송자가 지정한 이미지 대신 빈틈 로고를 사용한다.
-const logo = '/images/bintime-mascot-coral.png'
+const logo = '/icons/puzzle-mark-192.png'
 const showNotification = self.registration.showNotification.bind(self.registration)
 self.registration.showNotification = (title, options = {}) => showNotification(title, {
   ...options,
   icon: logo,
-  image: logo,
-  badge: logo,
+  image: '/icons/puzzle-mark-512.png',
+  badge: '/icons/puzzle-mark-badge-96.png',
 })
 
 importScripts('https://www.gstatic.com/firebasejs/13.0.0/firebase-app-compat.js')
@@ -53,7 +57,7 @@ if (Object.values(config).every(Boolean)) {
     return self.registration.showNotification(data.title || '빈틈', {
       body: data.body || '',
       tag: data.notificationId || payload.messageId,
-      data: { bintime: true, url: notificationUrl(data.url, data.shopId) },
+      data: { bintime: true, url: notificationUrl(data.url, data.shopId), notificationId: data.notificationId },
     })
   })
 }

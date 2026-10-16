@@ -124,10 +124,12 @@ test('background notifications avoid SDK duplicates and display data-only conten
   assert.equal(notification.tag, 'notice-1')
   assert.equal(notification.data.url, `${origin}/customer/shops/shop%2F1`)
   assert.equal(notification.data.bintime, true)
-  assert.equal(notification.icon, '/images/bintime-mascot-coral.png')
-  assert.equal(notification.image, notification.icon)
+  assert.equal(notification.data.notificationId, 'notice-1')
+  assert.equal(notification.icon, '/icons/puzzle-mark-192.png')
+  assert.equal(notification.image, '/icons/puzzle-mark-512.png')
+  assert.equal(notification.badge, '/icons/puzzle-mark-badge-96.png')
   await worker.click(notification.data)
-  assert.deepEqual(worker.opened, [`${origin}/customer/shops/shop%2F1`])
+  assert.deepEqual(worker.opened, [`${origin}/customer/shops/shop%2F1?notificationId=notice-1`])
 })
 
 test('SDK notifications keep their content and click data while all imagery uses the BinTime logo', async () => {
@@ -142,8 +144,8 @@ test('SDK notifications keep their content and click data while all imagery uses
   const result = worker.registration.showNotification('빈자리 알림', options)
   assert.ok(result instanceof Promise)
   await result
-  const logo = '/images/bintime-mascot-coral.png'
-  assert.deepEqual(worker.notifications, [{ title: '빈자리 알림', ...options, icon: logo, image: logo, badge: logo }])
+  const logo = '/icons/puzzle-mark-192.png'
+  assert.deepEqual(worker.notifications, [{ title: '빈자리 알림', ...options, icon: logo, image: '/icons/puzzle-mark-512.png', badge: '/icons/puzzle-mark-badge-96.png' }])
   assert.equal(options.image, 'https://external.example/banner.png')
   await worker.click(worker.notifications[0].data)
   assert.deepEqual(worker.opened, [`${origin}/customer/waitlist`])
@@ -219,4 +221,17 @@ test('service worker waits for configuration and uses the installed Firebase SDK
   const { dependencies } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
   assert.equal(worker.imports.length, 2)
   for (const url of worker.imports) assert.equal(new URL(url).pathname.split('/')[2], dependencies.firebase)
+})
+
+test('notification clicks keep the ID for read state in both existing and new tabs', async () => {
+  const messages = []
+  const worker = loadWorker([{ url: origin, postMessage: (message) => messages.push({ ...message }), focus: () => {} }])
+  await worker.click({ FCM_MSG: { data: { url: '/customer/waitlist', notificationId: 'noti-1' } } })
+  assert.deepEqual(messages, [{ type: 'bintime:notification-click', url: `${origin}/customer/waitlist`, notificationId: 'noti-1' }])
+  const fresh = loadWorker()
+  await fresh.click({ bintime: true, url: '/customer/shops/a?slotId=slot-1', notificationId: 'noti/1' })
+  assert.deepEqual(fresh.opened, [`${origin}/customer/shops/a?slotId=slot-1&notificationId=noti%2F1`])
+  const invalid = loadWorker()
+  await invalid.click({ bintime: true, url: '/customer/waitlist', notificationId: 'bad\nvalue' })
+  assert.deepEqual(invalid.opened, [`${origin}/customer/waitlist`])
 })

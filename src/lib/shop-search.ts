@@ -1,5 +1,3 @@
-import type { Shop } from '../types.ts'
-
 export interface SearchBounds {
   south: number
   west: number
@@ -14,14 +12,4 @@ export function hasSearchAreaChanged(previous: SearchBounds, current: SearchBoun
   return previousLevel !== currentLevel
     || latitudeDelta > (previous.north - previous.south) * 0.25 + tolerance
     || longitudeDelta > (previous.east - previous.west) * 0.25 + tolerance
-}
-
-export function filterShops(shops: Shop[], query: string, category: string, bounds: SearchBounds | null) {
-  const term = query.trim().toLocaleLowerCase()
-  return shops.filter((shop) =>
-    (category === '전체' || shop.category === category)
-    && `${shop.name} ${shop.category} ${shop.service} ${shop.address}`.toLocaleLowerCase().includes(term)
-    && (!bounds || (shop.latitude >= bounds.south && shop.latitude <= bounds.north
-      && shop.longitude >= bounds.west && shop.longitude <= bounds.east)),
-  )
 }

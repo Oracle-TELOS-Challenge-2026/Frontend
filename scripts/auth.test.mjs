@@ -3,7 +3,7 @@ import test from 'node:test'
 import { KAKAO_LOGIN_URL, logout, readSession } from '../src/lib/auth.ts'
 import { BACKEND_API_ORIGIN } from '../src/lib/backend-api.ts'
 
-const user = { id: 'usr_001', displayName: '빈틈고객', roles: ['CUSTOMER'] }
+const user = { id: 'usr_001', displayName: '빈틈고객', roles: ['CUSTOMER'], ownedStoreIds: [], preferences: { categories: [], keywords: [], maxPrice: null, text: '' }, location: null, version: 1 }
 const success = (data) => Response.json({ resultType: 'SUCCESS', success: { data }, error: null })
 const failure = (status, code = `HTTP_${status}`) => Response.json({ resultType: 'FAILURE', success: null, error: { code } }, { status })
 
@@ -32,14 +32,11 @@ test('Kakao starts with a browser destination and restores only server user valu
   }
 })
 
-test('401 alone means anonymous, while a missing profile API can confirm only the session', async (t) => {
-  const fetch = mockRequests(t, [failure(401), failure(501), success({ csrfToken: 'csrf-token' }), failure(501), failure(401)])
+test('only 401 means anonymous; unimplemented APIs do not create a usable account', async (t) => {
+  const fetch = mockRequests(t, [failure(401), failure(501)])
   assert.deepEqual(await readSession(), { status: 'anonymous' })
-  assert.deepEqual(await readSession(), { status: 'profile-unavailable' })
-  assert.deepEqual(await readSession(), { status: 'anonymous' })
-  assert.deepEqual(fetch.mock.calls.map(({ arguments: [url] }) => new URL(url).pathname), [
-    '/api/v1/users/me', '/api/v1/users/me', '/api/v1/auth/csrf', '/api/v1/users/me', '/api/v1/auth/csrf',
-  ])
+  await assert.rejects(readSession(), { name: 'BackendApiError', status: 501 })
+  assert.equal(fetch.mock.callCount(), 2)
 })
 
 test('profile errors never turn into anonymous or a guessed user', async (t) => {
@@ -55,20 +52,13 @@ test('profile errors never turn into anonymous or a guessed user', async (t) => 
 test('malformed user information cannot authorize the account', async (t) => {
   const invalid = [null, {}, { ...user, id: 1 }, { ...user, id: '' },
     { ...user, displayName: null }, { ...user, displayName: ' ' }, { ...user, roles: undefined },
-    { ...user, roles: 'CUSTOMER' }, { ...user, roles: [1] }, { ...user, roles: [''] }]
+    { ...user, ownedStoreIds: null }, { ...user, ownedStoreIds: [1] }, { ...user, version: 0 }, { ...user, version: 1.5 }, { ...user, preferences: null }, { ...user, preferences: { ...user.preferences, maxPrice: -1 } }, { ...user, preferences: { ...user.preferences, text: null } }, { ...user, roles: 'CUSTOMER' }, { ...user, roles: [1] }, { ...user, roles: [''] }]
   for (const data of invalid) {
     mockRequests(t, [success(data)])
     await assert.rejects(readSession(), { name: 'BackendApiError', status: 200, code: 'INVALID_RESPONSE' })
   }
   for (const response of [new Response('not JSON'), new Response(null, { status: 204 }), failure(200, 'SERVER_REJECTED')]) {
     mockRequests(t, [response])
-    await assert.rejects(readSession(), { name: 'BackendApiError' })
-  }
-})
-
-test('CSRF fallback failures remain integration errors', async (t) => {
-  for (const response of [failure(500), failure(501), success({}), success({ csrfToken: 12 }), success({ csrfToken: ' ' }), success({ csrfToken: 'csrf\r\ntoken' })]) {
-    mockRequests(t, [failure(501), response])
     await assert.rejects(readSession(), { name: 'BackendApiError' })
   }
 })

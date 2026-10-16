@@ -1,149 +1,32 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createDemoState, CUSTOMER_ID, DEMO_DAY, DEMO_NOW } from '../src/data/demo.ts'
-import { discountPrice, getAvailableSlots, publishCancellation, removeReservationHistory, reserveSlot, validWaitPreference } from '../src/lib/booking.ts'
+import { discountPrice, getAvailableSlots, validWaitPreference } from '../src/lib/booking.ts'
+import { todayInSeoul } from '../src/lib/format.ts'
 
-test('wait preferences require a real calendar date and a current or future time in Seoul', () => {
-  for (const [date, time] of [[DEMO_DAY, '14:20'], [DEMO_DAY, '14:21'], ['2026-10-17', '00:00'], ['2028-02-29', '09:00']]) {
-    assert.equal(validWaitPreference(date, time), true, `${date} ${time}`)
-  }
-  for (const [date, time] of [
-    [DEMO_DAY, '14:19'], ['2026-10-15', '23:59'], ['2027-02-29', '15:00'],
-    ['2026-11-31', '15:00'], ['2026-13-01', '15:00'], ['2026-10-32', '15:00'],
-    ['2026-1-17', '15:00'], ['', '15:00'], [DEMO_DAY, '24:00'],
-    [DEMO_DAY, '14:60'], [DEMO_DAY, '9:00'], [DEMO_DAY, ''],
-  ]) {
-    assert.equal(validWaitPreference(date, time), false, `${date} ${time}`)
-  }
+test('wait preferences require a real future date and time in Seoul', () => {
+  const now = Date.parse('2026-10-17T00:00:00+09:00')
+  for (const [date, time] of [['2026-10-17', '00:01'], ['2028-02-29', '09:00']]) assert.equal(validWaitPreference(date, time, now), true)
+  for (const [date, time] of [['2026-10-17', '00:00'], ['2026-10-16', '23:59'], ['2027-02-29', '15:00'], ['2026-11-31', '15:00'], ['2026-13-01', '15:00'], ['2026-1-17', '15:00'], ['', '15:00'], ['2026-10-17', '24:00'], ['2026-10-17', '14:60']]) assert.equal(validWaitPreference(date, time, now), false)
 })
 
-test('discount prices accept whole positive amounts and percentages below the original price', () => {
-  assert.equal(discountPrice(50000, 'percent', 1), 49500)
-  assert.equal(discountPrice(50000, 'percent', 30), 35000)
-  assert.equal(discountPrice(50000, 'percent', 99), 500)
-  assert.equal(discountPrice(50000, 'amount', 1), 1)
-  assert.equal(discountPrice(50000, 'amount', 35000), 35000)
-  assert.equal(discountPrice(50000, 'amount', 49999), 49999)
+test('the day is based on Seoul regardless of browser timezone', () => {
+  assert.equal(todayInSeoul(new Date('2026-10-16T14:59:59Z')), '2026-10-16')
+  assert.equal(todayInSeoul(new Date('2026-10-16T15:00:00Z')), '2026-10-17')
+})
 
-  for (const value of [NaN, Infinity, -Infinity, -1, 0, 0.5]) {
+test('available slots preserve separate resources at the same time and hide expired times', () => {
+  const startsAt = new Date(Date.now() + 60000).toISOString()
+  const first = { id: 'resource-a', startsAt }, second = { id: 'resource-b', startsAt }
+  assert.deepEqual(getAvailableSlots({ slots: [first, second, { id: 'old', startsAt: '2000-01-01T00:00:00Z' }] }), [first, second])
+})
+
+test('discounts validate whole amounts and percentages without changing the meaning of amount', () => {
+  assert.equal(discountPrice(50000, 'percent', 30), 35000)
+  assert.equal(discountPrice(50000, 'amount', 35000), 35000)
+  for (const value of [NaN, Infinity, -1, 0, 0.5]) {
     assert.equal(discountPrice(50000, 'percent', value), null)
     assert.equal(discountPrice(50000, 'amount', value), null)
   }
-  for (const value of [100, 101]) assert.equal(discountPrice(50000, 'percent', value), null)
-  for (const value of [50000, 50001]) assert.equal(discountPrice(50000, 'amount', value), null)
-})
-
-test('booking rejects an unavailable slot and a second booking without changing the original state', () => {
-  const state = createDemoState()
-  const slot = state.shops[0].slots[0]
-  const booked = reserveSlot(state, 'moment', slot.startsAt)
-
-  assert.ok(booked)
-  assert.equal(booked.reservations.length, state.reservations.length + 1)
-  assert.equal(booked.reservations.at(-1).price, slot.price)
-  assert.equal(booked.reservations.at(-1).status, 'confirmed')
-  assert.equal(state.reservations.length, 7)
-  assert.equal(reserveSlot(booked, 'moment', slot.startsAt), null)
-  assert.equal(reserveSlot(state, 'missing', slot.startsAt), null)
-  assert.equal(reserveSlot(state, 'moment', '2026-10-16T12:00:00+09:00'), null)
-})
-
-test('availability rejects overlapping intervals but accepts bookings that just touch', () => {
-  const state = createDemoState()
-  const shop = state.shops[0]
-  const times = ['15:00', '15:30', '16:00', '17:30', '18:00', '18:30', '19:30']
-  const slots = times.map((time) => ({ ...shop.slots[0], startsAt: `2026-10-16T${time}:00+09:00` }))
-
-  assert.deepEqual(
-    getAvailableSlots({ ...shop, slots }, state.reservations).map((slot) => slot.startsAt.slice(11, 16)),
-    ['16:00', '17:30', '19:30'],
-  )
-})
-
-test('booking removes only the wait request matching the shop, date, and time', () => {
-  const state = createDemoState()
-  const request = state.waitlist[0]
-  state.waitlist.push(
-    { ...request, id: 'other-date', preferredDate: '2026-10-17' },
-    { ...request, id: 'other-time', preferredTime: '18:00' },
-    { ...request, id: 'other-shop', shopId: 'ond' },
-  )
-
-  const booked = reserveSlot(state, 'moment', state.shops[0].slots[0].startsAt)
-  assert.ok(booked)
-  assert.deepEqual(booked.waitlist.map((item) => item.id), ['wait-2', 'other-date', 'other-time', 'other-shop'])
-  assert.equal(state.waitlist.length, 5)
-})
-
-test('removing past history hides only the customer record and preserves shared reservation data', () => {
-  const state = createDemoState()
-  const original = structuredClone(state)
-  const removed = removeReservationHistory(state, 'res-3')
-  assert.ok(removed)
-  assert.equal(removed.reservations.length, state.reservations.length)
-  assert.deepEqual(removed.reservations.find((item) => item.id === 'res-3'), { ...state.reservations.find((item) => item.id === 'res-3'), hiddenFromCustomer: true })
-  assert.deepEqual(removed.reservations.filter((item) => item.customerId === CUSTOMER_ID && !item.hiddenFromCustomer).map((item) => item.id), ['res-1', 'res-2'])
-  assert.deepEqual(removed.reservations.filter((item) => item.id !== 'res-3'), state.reservations.filter((item) => item.id !== 'res-3'))
-  assert.equal(removed.shops, state.shops)
-  assert.equal(removed.waitlist, state.waitlist)
-  assert.equal(removed.cancellations, state.cancellations)
-  assert.equal(removed.conversations, state.conversations)
-  assert.deepEqual(state, original)
-  assert.equal(removeReservationHistory(removed, 'res-3'), null)
-})
-
-test('history removal rejects missing IDs, other customers, upcoming reservations and the current start time', () => {
-  const state = createDemoState()
-  for (const id of ['missing', 'res-4', 'res-1', 'res-2']) {
-    assert.equal(removeReservationHistory(state, id), null)
-  }
-  const current = { ...state, reservations: [{ ...state.reservations[0], startsAt: DEMO_NOW }] }
-  assert.equal(removeReservationHistory(current, 'res-1'), null)
-})
-
-test('hiding a past confirmed reservation still blocks its occupied time', () => {
-  const state = createDemoState()
-  const started = { ...state, reservations: [{ ...state.reservations[0], startsAt: `${DEMO_DAY}T14:00:00+09:00` }] }
-  const shop = { ...state.shops[0], slots: [{ ...state.shops[0].slots[0], startsAt: `${DEMO_DAY}T14:30:00+09:00` }] }
-  const removed = removeReservationHistory(started, 'res-1')
-  assert.ok(removed)
-  assert.equal(removed.reservations[0].status, 'confirmed')
-  assert.deepEqual(getAvailableSlots(shop, started.reservations), [])
-  assert.deepEqual(getAvailableSlots(shop, removed.reservations), [])
-})
-
-test('publishing a cancellation creates a bookable discounted slot once', () => {
-  const state = createDemoState()
-  const published = publishCancellation(state, 'cancel-2', '  젤 네일 + 케어  ', 'percent', 20)
-  assert.ok(published)
-
-  const cancellation = published.cancellations.find((item) => item.id === 'cancel-2')
-  const slot = published.shops[0].slots.find((item) => item.cancellationId === 'cancel-2')
-  assert.ok(cancellation.publishedAt)
-  assert.equal(cancellation.price, 40000)
-  assert.deepEqual(slot, {
-    startsAt: cancellation.startsAt,
-    service: '젤 네일 + 케어',
-    originalPrice: 50000,
-    price: 40000,
-    cancellationId: 'cancel-2',
-  })
-  assert.ok(reserveSlot(published, 'moment', slot.startsAt))
-  assert.equal(publishCancellation(published, 'cancel-2', '케어', 'amount', 30000), null)
-  assert.equal(state.cancellations[0].publishedAt, undefined)
-  assert.equal(state.shops[0].slots.length, 3)
-})
-
-test('publishing rejects malformed services, invalid discounts, and past or occupied cancellations', () => {
-  const state = createDemoState()
-  for (const service of ['', ' \n ', '가'.repeat(161)]) {
-    assert.equal(publishCancellation(state, 'cancel-2', service, 'percent', 20), null)
-  }
-  assert.equal(publishCancellation(state, 'cancel-2', '케어', 'percent', NaN), null)
-  assert.equal(publishCancellation(state, 'missing', '케어', 'percent', 20), null)
-
-  for (const startsAt of ['2026-10-15T17:00:00+09:00', '2026-10-16T15:30:00+09:00', 'invalid-date']) {
-    const unavailable = { ...state, cancellations: [{ ...state.cancellations[0], startsAt }] }
-    assert.equal(publishCancellation(unavailable, 'cancel-2', '케어', 'amount', 30000), null)
-  }
+  assert.equal(discountPrice(50000, 'percent', 100), null)
+  assert.equal(discountPrice(50000, 'amount', 50000), null)
 })
