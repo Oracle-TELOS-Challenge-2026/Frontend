@@ -10,7 +10,7 @@ export function ShopCard({ shop, slot, compact = false }: { shop: Shop; slot?: S
     <div className="shop-result-content">
       <div className="shop-result-title"><h3>{shop.name}</h3>{!compact && <Icon name="chevron-right" size={16} />}</div>
       {!compact && <>
-        <p className="shop-result-meta">{shop.category}{shop.distance && ` · ${shop.distance}`}{shop.rating && <span aria-label={`평점 ${shop.rating}`}> · ★ {shop.rating}</span>}</p>
+        <p className="shop-result-meta">{shop.category}{shop.distance && ` · ${shop.distance}`}</p>
         <span className={`badge ${slot && slot.price < slot.originalPrice ? 'coral' : ''}`}>{slot ? `${todayInSeoul(new Date(slot.startsAt)) === todayInSeoul() ? '오늘' : dateLabel(slot.startsAt)} ${timeLabel(slot.startsAt)}${slot.price < slot.originalPrice ? ' 빈자리' : ' 예약 가능'}` : '빈자리 알림 신청 가능'}</span>
       </>}
       <p className="shop-result-service">{slot?.service ?? shop.service}</p>

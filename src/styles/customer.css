@@ -77,7 +77,6 @@
 .detail-description { font-size: 13px; color: var(--muted); line-height: 1.8; margin: 10px 0 18px; }
 .detail-info { display: flex; gap: 6px; align-items: center; margin: 9px 0; font-size: 12px; color: var(--muted); }
 .detail-info svg { color: var(--primary); }
-.detail-rating { color: var(--accent-dark); }
 .detail-section { margin-top: 27px; padding-top: 24px; border-top: 1px solid var(--line); }
 .detail-section h2 { font-weight: 750; font-size: 17px; margin: 0 0 6px; }
 .detail-section > p { font-size: 12px; color: var(--muted); margin: 0 0 15px; line-height: 1.8; }

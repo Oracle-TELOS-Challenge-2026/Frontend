@@ -82,7 +82,7 @@ export async function readStore(storeId: string, date: string, signal?: AbortSig
   return {
     id: text(row.id), name: text(row.name), category: CATEGORY_LABELS[code], categoryCode: code,
     image: picture(row.imageUrl), address: text(row.address), distance: '',
-    rating: row.rating === null ? '' : String(number(record(row.rating).average)), description: row.description === null ? '' : text(row.description),
+    description: row.description === null ? '' : text(row.description),
     service: active[0]?.name ?? '', originalPrice: active[0]?.basePrice ?? null, duration: active[0]?.durationMinutes ?? null,
     latitude: number(location.latitude), longitude: number(location.longitude), services: active,
     slots: slots.filter((item) => record(item).bookable === true).map((item) => slotFromResponse(item, services)),
@@ -108,7 +108,7 @@ export async function searchStores(query: string, code: string, bounds: SearchBo
     return {
       id: text(store.id), name: text(store.name), category: CATEGORY_LABELS[code], categoryCode: code,
       image: picture(store.imageUrl), address: '', distance: distance < 1000 ? `${distance}m` : `${(distance / 1000).toFixed(1)}km`,
-      rating: store.rating === null ? '' : String(number(record(store.rating).average)), description: '',
+      description: '',
       service: slot ? text(slot.serviceName) : '', originalPrice: slot ? integer(slot.originalPrice) : null, duration: null,
       latitude: number(location.latitude), longitude: number(location.longitude), services: [],
       slots: slot ? [{ id: text(slot.id), serviceId: text(slot.serviceId), startsAt: timestamp(slot.startAt), service: text(slot.serviceName), originalPrice: integer(slot.originalPrice), price: integer(slot.payablePrice), version: integer(slot.version, 1) }] : [],

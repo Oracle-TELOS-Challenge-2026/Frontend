@@ -57,7 +57,6 @@ export interface Shop {
   image: string
   address: string
   distance: string
-  rating: string
   description: string
   service: string
   originalPrice: number | null
