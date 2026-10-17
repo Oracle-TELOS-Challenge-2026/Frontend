@@ -24,6 +24,7 @@ export interface RegisteredShop extends ShopRegistration {
 export interface AccountState {
   role: Role | null
   shop: RegisteredShop | null
+  customerRegistered: boolean
   preferences: string
 }
 

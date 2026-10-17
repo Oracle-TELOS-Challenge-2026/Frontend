@@ -25,7 +25,15 @@ test('entry requires a server-registered service before opening the owner accoun
   assert.equal(accountStartPath({ role: 'owner', shop: null }), '/owner/register')
   assert.equal(accountStartPath({ role: 'owner', shop: { ...shop, serviceId: undefined } }), '/owner/register')
   assert.equal(accountStartPath({ role: 'owner', shop }), '/owner')
-  assert.equal(accountStartPath({ role: 'customer', shop }), '/customer')
+  assert.equal(accountStartPath({ role: 'customer', shop, customerRegistered: true }), '/customer')
+})
+
+test('customer entry requires a saved name even when switching from an owner account', () => {
+  for (const ownedShop of [null, shop]) {
+    assert.equal(accountStartPath({ role: 'customer', shop: ownedShop, customerRegistered: false }), '/customer/register')
+    assert.equal(accountStartPath({ role: 'customer', shop: ownedShop, customerRegistered: true }), '/customer')
+  }
+  assert.equal(accountStartPath({ role: 'owner', shop, customerRegistered: false }), '/owner')
 })
 
 test('registration matches server text, location, price and five-minute duration constraints', () => {
@@ -106,10 +114,10 @@ test('customers and owners restore either screen mode while owner entry still re
     [[], 'customer', null],
     [['UNKNOWN'], 'customer', null],
   ]) assert.equal(restoreAccountRole(roles, saved), expected)
-  assert.equal(accountStartPath({ role: restoreAccountRole(['CUSTOMER'], null), shop: null }), '/customer')
+  assert.equal(accountStartPath({ role: restoreAccountRole(['CUSTOMER'], null), shop: null, customerRegistered: false }), '/customer/register')
   assert.equal(accountStartPath({ role: restoreAccountRole(['OWNER'], null), shop }), '/owner')
   assert.equal(accountStartPath({ role: restoreAccountRole(['OWNER'], null), shop: null }), '/owner/register')
-  assert.equal(accountStartPath({ role: restoreAccountRole(['OWNER'], 'customer'), shop }), '/customer')
+  assert.equal(accountStartPath({ role: restoreAccountRole(['OWNER'], 'customer'), shop, customerRegistered: false }), '/customer/register')
   assert.equal(accountStartPath({ role: restoreAccountRole(['CUSTOMER'], 'owner'), shop: null }), '/owner/register')
   assert.equal(accountStartPath({ role: restoreAccountRole(['OWNER'], 'owner'), shop }), '/owner')
 })

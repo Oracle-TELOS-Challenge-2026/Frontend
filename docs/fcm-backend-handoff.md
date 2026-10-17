@@ -50,7 +50,7 @@ VITE_FIREBASE_VAPID_KEY=
 
 서비스 계정 JSON, `private_key`, VAPID 비공개키는 프론트·Git·`VITE_` 변수에 넣지 않는다. 서버의 FCM 인증 정보는 서버 비밀 저장소에서 관리하고 프론트와 같은 Firebase 프로젝트를 사용한다.
 
-- 활성 탭에서는 SSE와 FCM `onMessage`로 알림함을 갱신하고, 같은 알림 ID의 토스트는 중복 표시하지 않는다. FCM 시스템 알림은 토스트 중복 판정과 별도로 서비스 워커에서 표시한다.
+- 활성 탭에서는 SSE와 FCM `onMessage`로 알림함을 갱신한다. 빈자리 토스트는 별도의 대기 후보 조회에서 슬롯별로 한 번 표시하므로 푸시 구독이 없어도 동작한다. FCM 시스템 알림은 기존처럼 서비스 워커에서 표시한다.
 - 시스템 알림은 서비스 워커의 공통 큐와 최근 500개 ID 캐시로 중복을 판정한다. 채팅은 `messageId`, 나머지는 `notificationId`가 우선이며, 없으면 FCM 메시지 ID를 사용한다.
 - 일반 알림 클릭 시 `notificationId`로 알림함 읽음 처리하고 연결된 화면으로 이동한다. `CHAT_MESSAGE`는 메시지 ID를 알림함 읽음 API에 보내지 않는다. 실제 채팅방을 연 뒤 기존 채팅 읽음 API를 사용한다.
 - 서비스 워커는 열린 창 메시지와 새 창 URL에 `notificationType`, `roomId`, `messageId`, `notificationId`를 보존한다. `/chat?roomId=...`는 로그인 후 채팅 목록에서 방과 소유 가게를 검증해 역할별 화면으로 이동한다. 로그인 전 목적지도 보관한다.

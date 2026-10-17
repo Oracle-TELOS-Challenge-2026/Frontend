@@ -32,11 +32,11 @@ export function ProfileSettings({ user, onChanged }: { user: CurrentUser; onChan
   return <section className="account-card profile-settings">
     <h2>내 정보</h2>
     <form className="account-form" onSubmit={(event) => { event.preventDefault(); void update(() => updateDisplayName(name, user.version), '이름을 변경했어요.') }}>
-      <div className="account-field"><label htmlFor="profile-name">이름</label><input id="profile-name" value={name} onChange={(event) => setName(event.target.value)} disabled={pending} required autoComplete="nickname" /></div>
+      <div className="account-field"><label htmlFor="profile-name">이름</label><input id="profile-name" value={name} onChange={(event) => setName(event.target.value)} disabled={pending} required maxLength={30} autoComplete="name" /></div>
       <button className="button secondary" disabled={pending || name.trim() === user.displayName}>이름 저장</button>
     </form>
     <h3>저장한 위치</h3>
-    <p className="muted">{user.location ? `${dateLabel(user.location.savedAt)} ${timeLabel(user.location.savedAt)}에 저장한 위치가 있어요.` : '저장한 위치가 없어요.'} 위치는 주변 대기 조건을 입력할 때 사용할 수 있어요.</p>
+    <p className="muted">{user.location ? `${dateLabel(user.location.savedAt)} ${timeLabel(user.location.savedAt)}에 확인한 위치가 있어요.` : '아직 확인한 위치가 없어요.'} 위치 권한을 허용하면 화면을 이용하는 동안 10초마다 위치를 갱신해 주변 빈자리 알림에 사용해요. 삭제해도 다음 갱신 때 다시 저장되며, 자동 저장을 중단하려면 브라우저의 위치 권한을 꺼 주세요.</p>
     <div className="account-form-actions"><button className="button secondary" disabled={pending} onClick={() => void update(locate, '현재 위치를 저장했어요.')}>현재 위치 저장</button>{user.location && <button className="button secondary" disabled={pending} onClick={() => void update(deleteUserLocation, '저장한 위치를 삭제했어요.')}>위치 삭제</button>}</div>
     {pending && <p role="status">처리 중이에요…</p>}{error && <p className="form-error" role="alert">{error}</p>}{message && <p role="status">{message}</p>}
   </section>

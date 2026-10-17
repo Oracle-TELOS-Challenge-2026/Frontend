@@ -3,6 +3,8 @@ import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react
 import { AppLayout } from './components/AppLayout'
 import { Modal } from './components/Modal'
 import { useAccount } from './hooks/useAccount'
+import { useRecentLocation } from './hooks/useRecentLocation'
+import { useVacancyAlerts } from './hooks/useVacancyAlerts'
 import { useChat } from './hooks/useChat'
 import { useNotifications } from './hooks/useNotifications'
 import { NotificationsPage } from './pages/NotificationsPage'
@@ -12,6 +14,7 @@ import { usePushNotifications } from './hooks/usePushNotifications'
 import { Login } from './pages/auth/LoginPage'
 import { RoleSelection } from './pages/auth/RoleSelectionPage'
 import { CustomerHome } from './pages/customer/HomePage'
+import { CustomerRegistration } from './pages/customer/RegistrationPage'
 import { ShopDetail } from './pages/customer/ShopDetailPage'
 import { WaitlistPage } from './pages/customer/WaitlistPage'
 import { ReservationsPage } from './pages/customer/ReservationsPage'
@@ -34,18 +37,24 @@ import './styles/chat.css'
 import './styles/profile.css'
 
 function RoleGate({ role, account }: { role: Role; account: AccountState }) {
-  if (account.role !== role || (role === 'owner' && !account.shop?.serviceId)) return <Navigate to={accountStartPath(account)} replace />
+  const location = useLocation()
+  if (account.role !== role || accountStartPath(account) !== `/${role}`) return <Navigate to={accountStartPath(account)} replace state={role === 'customer' && account.role === role ? { returnTo: location.pathname + location.search + location.hash } : null} />
   return <Outlet />
 }
 
 function App() {
-  const { account, user, loading, error, clearError, selectRole, registerShop, savePreferences, refresh, refreshUser, refreshShop, signOut } = useAccount()
+  const { account, user, loading, error, clearError, selectRole, registerCustomer, registerShop, savePreferences, refresh, refreshUser, refreshShop, signOut } = useAccount()
   const [toast, setToast] = useState<{ text: string; id: number } | null>(null)
   const [confirmRole, setConfirmRole] = useState<Role | null>(null)
   const notify = useCallback((text: string) => setToast({ text, id: Date.now() }), [])
+  const recentLocation = useRecentLocation(user?.id, notify)
+  const savedLocation = recentLocation && (!user?.location || Date.parse(recentLocation.savedAt) > Date.parse(user.location.savedAt)) ? recentLocation : user?.location ?? null
+  const vacancyRevision = useVacancyAlerts(user?.id, savedLocation, notify)
   const chat = useChat(user?.id)
   const notifications = useNotifications(user?.id, notify)
-  const push = usePushNotifications(notifications.announce, user?.id)
+  const { refresh: refreshNotifications } = notifications
+  const onPush = useCallback(() => { void refreshNotifications() }, [refreshNotifications])
+  const push = usePushNotifications(onPush, user?.id)
   const navigate = useNavigate()
   const location = useLocation()
   const startPath = accountStartPath(account)
@@ -63,7 +72,7 @@ function App() {
   const notificationId = notification?.notificationId
   const chatNotification = notification?.kind === 'chat'
   const { markRead } = notifications
-  const notificationRevision = Date.parse(notifications.items[0]?.createdAt ?? '') || 0
+  const notificationRevision = (Date.parse(notifications.items[0]?.createdAt ?? '') || 0) + vacancyRevision
   const openNotificationPath = useCallback((path: string) => {
     if (notificationTarget(path)?.kind !== 'chat') {
       if (path.startsWith('/customer/')) selectRole('customer')
@@ -71,7 +80,7 @@ function App() {
     }
     navigate(path)
   }, [navigate, selectRole])
-  const showError = Boolean(error && !loginPage && !['/choose-role', '/owner/register', '/customer/profile/preferences'].includes(location.pathname))
+  const showError = Boolean(error && !loginPage && !['/choose-role', '/owner/register', '/customer/register', '/customer/profile/preferences'].includes(location.pathname))
   const errorToast = useMemo(() => ({ text: error, id: 0 }), [error])
   const visibleToast = showError ? errorToast : toast
 
@@ -126,11 +135,12 @@ function App() {
       : account.role === 'owner' && user.ownedStoreIds.length > 0 && !account.shop ? <div className="page"><p role="alert">{error || '등록된 가게를 불러오지 못했어요.'}</p><button className="button" onClick={() => void refresh()}>다시 조회</button><button className="button secondary" onClick={() => enterRole('customer')}>고객 화면으로</button><button className="account-text-button" onClick={() => void signOut()}>로그아웃</button></div>
       : <Routes>
         <Route path="/choose-role" element={account.role ? <Navigate to={startPath} replace /> : <RoleSelection onSelect={enterRole} error={error} />} />
+        <Route path="/customer/register" element={account.role === 'customer' && !account.customerRegistered ? <CustomerRegistration key={user.id} error={error} onCancel={() => enterRole('owner')} onRegister={async (name) => { if (!await registerCustomer(name)) return false; navigate(notificationPath(location.state?.returnTo ?? '/customer'), { replace: true }); return true }} /> : <Navigate to={startPath} replace />} />
         <Route path="/owner/register" element={account.role === 'owner' && !account.shop?.serviceId ? <Registration shop={account.shop} error={error} onCancel={() => enterRole('customer')} onRegister={async (input) => { if (!await registerShop(input)) return false; navigate('/owner', { replace: true }); return true }} /> : <Navigate to={startPath} replace />} />
         <Route element={<RoleGate role="customer" account={account} />}>
           <Route path="/customer" element={<CustomerHome />} />
-          <Route path="/customer/waitlist" element={<WaitlistPage key={location.key} savedLocation={user.location} revision={notificationRevision} />} />
-          <Route path="/customer/waitlist/:id" element={<WaitlistPage key={location.key} savedLocation={user.location} revision={notificationRevision} />} />
+          <Route path="/customer/waitlist" element={<WaitlistPage key={location.key} savedLocation={savedLocation} revision={notificationRevision} />} />
+          <Route path="/customer/waitlist/:id" element={<WaitlistPage key={location.key} savedLocation={savedLocation} revision={notificationRevision} />} />
           <Route path="/customer/notifications" element={<NotificationsPage notifications={notifications} onOpen={openNotificationPath} />} />
           <Route path="/customer/chats" element={<CustomerChats chat={chat} userId={user.id} />} />
           <Route path="/customer/reservations/:id" element={<ReservationsPage key={location.key} />} />

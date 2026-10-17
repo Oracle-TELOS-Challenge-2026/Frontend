@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { todayInSeoul, timeLabel, validWaitPreference } from '../../model'
 import type { Shop, WaitlistConditions, WaitlistItem } from '../../model'
-import { saveWaitlist } from '../../lib/customer-api'
+import { readWaitlistItem, saveWaitlist } from '../../lib/customer-api'
 import { Modal } from '../Modal'
 
 const inputDate = (value: string) => `${todayInSeoul(new Date(value))}T${timeLabel(value)}`
@@ -22,18 +22,19 @@ export function WaitlistDialog({ shop, item, date = todayInSeoul(), onSaved, onC
       setError('미래의 방문 가능 구간과 빈자리 알림 동의를 확인해 주세요.')
       return
     }
-    const conditions: WaitlistConditions = {
-      ...(item?.conditions ?? { storeId: shop!.id, category: shop!.categoryCode, serviceId: null, location: null, radiusMeters: null, maxPrice: null, keywords: [] }),
-      windowStart: `${start}:00+09:00`, windowEnd: `${end}:00+09:00`,
-      ...(shop ? { serviceId: String(data.get('service')) || null } : {}),
-    }
-    const body = JSON.stringify(conditions)
-    if (request.current.body !== body) request.current = { body, key: crypto.randomUUID() }
     busy.current = true
     setPending(true)
     setError('')
     try {
-      await saveWaitlist(conditions, request.current.key, item)
+      const latest = item ? await readWaitlistItem(item.id) : undefined
+      const conditions: WaitlistConditions = {
+        ...(latest?.conditions ?? { storeId: shop!.id, category: shop!.categoryCode, serviceId: null, location: null, radiusMeters: null, maxPrice: null, keywords: [] }),
+        windowStart: `${start}:00+09:00`, windowEnd: `${end}:00+09:00`,
+        ...(shop && !item ? { serviceId: String(data.get('service')) || null } : {}),
+      }
+      const body = JSON.stringify(conditions)
+      if (request.current.body !== body) request.current = { body, key: crypto.randomUUID() }
+      await saveWaitlist(conditions, request.current.key, latest)
       onSaved?.()
       onClose()
     } catch (cause) { setError(cause instanceof Error ? cause.message : '알림 신청을 저장하지 못했어요.') }

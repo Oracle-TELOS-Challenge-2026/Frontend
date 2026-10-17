@@ -11,7 +11,7 @@ export function AppLayout({ children, toast, hasUnread, notificationCount, onSwi
   const location = useLocation()
   const content = useRef<HTMLDivElement>(null)
   const role = location.pathname.startsWith('/owner') ? 'owner' : 'customer'
-  const isApp = (location.pathname.startsWith('/customer') || location.pathname.startsWith('/owner')) && location.pathname !== '/owner/register'
+  const isApp = (location.pathname.startsWith('/customer') || location.pathname.startsWith('/owner')) && !['/owner/register', '/customer/register'].includes(location.pathname)
   const isChat = location.pathname.includes('/chat/')
   const isCustomerMap = location.pathname.replace(/\/$/, '') === '/customer'
   useLayoutEffect(() => { content.current?.scrollTo(0, 0) }, [location.pathname])

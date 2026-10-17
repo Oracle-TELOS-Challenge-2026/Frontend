@@ -84,5 +84,6 @@ export function restoreAccountRole(roles: string[], saved: string | null): Role 
 
 export function accountStartPath(account: AccountState): string {
   if (!account.role) return '/choose-role'
+  if (account.role === 'customer' && !account.customerRegistered) return '/customer/register'
   return account.role === 'owner' && !account.shop?.serviceId ? '/owner/register' : `/${account.role}`
 }

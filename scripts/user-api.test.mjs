@@ -28,7 +28,7 @@ test('device coordinates accept server six-decimal rounding and location deletio
     return options.method === 'DELETE' ? new Response(null, { status: 204 }) : success({ latitude: 37.504727, longitude: 126.953834, savedAt: '2028-01-01T00:00:00Z' })
   })
   const position = { coords: { latitude: 37.50472672, longitude: 126.95383388, accuracy: 22.7 }, timestamp: Date.parse('2028-01-01T00:00:00Z') }
-  await saveUserLocation(position)
+  assert.deepEqual(await saveUserLocation(position), { latitude: 37.504727, longitude: 126.953834, savedAt: '2028-01-01T00:00:00Z' })
   assert.deepEqual(JSON.parse(requests[0].options.body), { latitude: position.coords.latitude, longitude: position.coords.longitude, accuracyMeters: 23, source: 'DEVICE', observedAt: '2028-01-01T00:00:00.000Z' })
   await deleteUserLocation()
   assert.equal(requests[1].options.method, 'DELETE')
@@ -42,4 +42,23 @@ test('profile conflict and malformed location replies remain errors', async (t) 
   t.mock.method(globalThis, 'fetch', async (url) => url.endsWith('/auth/csrf') ? success({ csrfToken: 'csrf' }) : success({ latitude: null, longitude: 127, savedAt: '2028-01-01T00:00:00Z' }))
   await assert.rejects(saveUserLocation({ coords: { latitude: 37, longitude: 127, accuracy: 10 }, timestamp: 100000 }), { code: 'INVALID_RESPONSE' })
   await assert.rejects(deleteUserLocation(), { code: 'INVALID_RESPONSE' })
+})
+
+test('canceling location tracking aborts an in-flight location save', async (t) => {
+  const controller = new AbortController()
+  let saving
+  const started = new Promise((resolve) => { saving = resolve })
+  t.mock.method(globalThis, 'fetch', async (url, { method, signal }) => {
+    if (url.endsWith('/auth/csrf')) return success({ csrfToken: 'csrf' })
+    assert.equal(url, '/api/v1/users/me/location')
+    assert.equal(method, 'PUT')
+    return new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      saving()
+    })
+  })
+  const pending = saveUserLocation({ coords: { latitude: 37, longitude: 127, accuracy: 10 }, timestamp: 100000 }, controller.signal)
+  await started
+  controller.abort()
+  await assert.rejects(pending, { name: 'AbortError' })
 })

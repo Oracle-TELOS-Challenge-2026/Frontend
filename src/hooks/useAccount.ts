@@ -3,12 +3,14 @@ import { createRegisteredService, createRegisteredShop, readRegisteredShop, rest
 import { logout, readSession } from '../lib/auth'
 import type { CurrentUser } from '../lib/auth'
 import { BackendApiError, mutateBackendApi } from '../lib/backend-api'
+import { updateDisplayName } from '../lib/user-api'
 import type { AccountState, RegisteredShop, Role, ShopRegistration } from '../types'
 
 export function useAccount() {
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [shop, setShop] = useState<RegisteredShop | null>(null)
   const [role, setRole] = useState<Role | null>(null)
+  const [customerRegistered, setCustomerRegistered] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const clearError = useCallback(() => setError(''), [])
@@ -24,8 +26,14 @@ export function useAccount() {
     try {
       const session = await readSession(controller.signal)
       if (controller.signal.aborted) return
-      if (session.status === 'anonymous') { loadedUserId.current = null; registration.current = null; setUser(null); setShop(null); setRole(null); return }
-      if (loadedUserId.current !== session.user.id) registration.current = null
+      if (session.status === 'anonymous') { loadedUserId.current = null; registration.current = null; setUser(null); setShop(null); setRole(null); setCustomerRegistered(false); return }
+      if (loadedUserId.current !== session.user.id) {
+        registration.current = null
+        let completed = false
+        // shortcut: 이름 입력 완료 여부는 이 브라우저에만 보관하며, 기기 간 동기화가 필요해지면 서버 필드를 추가한다.
+        try { completed = localStorage.getItem(`bintime.customer-registered.${session.user.id}`) === 'true' } catch { /* 저장 공간이 없으면 로그인마다 이름을 확인한다. */ }
+        setCustomerRegistered(completed)
+      }
       loadedUserId.current = session.user.id
       setShop(null)
       setUser(session.user)
@@ -80,6 +88,29 @@ export function useAccount() {
     try { localStorage.setItem(`bintime.role.${user.id}`, next) } catch { /* 역할 선택은 서버의 권한을 변경하지 않는다. */ }
     return true
   }, [user, shop])
+
+  async function registerCustomer(name: string): Promise<boolean> {
+    if (busy.current || !user) return false
+    busy.current = true
+    setError('')
+    try {
+      await updateDisplayName(name, user.version)
+      if (loadedUserId.current !== user.id) return false
+      await refreshUser()
+      if (loadedUserId.current !== user.id) return false
+      setCustomerRegistered(true)
+      try { localStorage.setItem(`bintime.customer-registered.${user.id}`, 'true') } catch { /* 저장 공간이 없어도 이번 로그인에서는 계속 이용한다. */ }
+      return true
+    } catch (cause) {
+      if (loadedUserId.current !== user.id) return false
+      if (cause instanceof BackendApiError && cause.code === 'VERSION_CONFLICT') {
+        await refreshUser().catch(() => {})
+        if (loadedUserId.current !== user.id) return false
+        setError('계정 정보가 바뀌었어요. 이름을 다시 저장해 주세요.')
+      } else setError(cause instanceof Error ? cause.message : '이름을 저장하지 못했어요. 다시 시도해 주세요.')
+      return false
+    } finally { busy.current = false }
+  }
 
   async function registerShop(input: ShopRegistration): Promise<boolean> {
     if (busy.current) return false
@@ -161,7 +192,7 @@ export function useAccount() {
     try {
       await logout()
       sessionRequest.current?.abort()
-      setUser(null); setShop(null); setRole(null)
+      setUser(null); setShop(null); setRole(null); setCustomerRegistered(false)
       registration.current = null
       loadedUserId.current = null
       return true
@@ -171,6 +202,6 @@ export function useAccount() {
     } finally { busy.current = false }
   }
 
-  const account: AccountState = { role, shop, preferences: user?.preferences.text ?? '' }
-  return { account, user, loading, error, clearError, selectRole, registerShop, savePreferences, refresh, refreshUser, refreshShop, signOut }
+  const account: AccountState = { role, shop, customerRegistered, preferences: user?.preferences.text ?? '' }
+  return { account, user, loading, error, clearError, selectRole, registerCustomer, registerShop, savePreferences, refresh, refreshUser, refreshShop, signOut }
 }

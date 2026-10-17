@@ -182,10 +182,10 @@ export async function readWaitlistItem(id: string, signal?: AbortSignal): Promis
   return item
 }
 
-export async function saveWaitlist(conditions: WaitlistConditions, idempotencyKey: string, item?: WaitlistItem, source: 'STORE_DETAIL' | 'NATURAL_LANGUAGE' | 'MANUAL' = 'STORE_DETAIL') {
+export async function saveWaitlist(conditions: WaitlistConditions, idempotencyKey: string, item?: WaitlistItem, source: 'STORE_DETAIL' | 'NATURAL_LANGUAGE' | 'MANUAL' = 'STORE_DETAIL', signal?: AbortSignal) {
   const body = { conditions, notificationConsent: true }
-  if (item) await mutateBackendApi(`/api/v1/search/waitlists/${apiId(item.id)}`, { method: 'PATCH', body: { ...body, expectedVersion: item.version } })
-  else await mutateBackendApi('/api/v1/search/waitlists', { body: { ...body, source }, idempotencyKey })
+  if (item) await mutateBackendApi(`/api/v1/search/waitlists/${apiId(item.id)}`, { method: 'PATCH', body: { ...body, expectedVersion: item.version }, signal })
+  else await mutateBackendApi('/api/v1/search/waitlists', { body: { ...body, source }, idempotencyKey, signal })
 }
 
 export async function cancelWaitlist(item: WaitlistItem, idempotencyKey: string) {

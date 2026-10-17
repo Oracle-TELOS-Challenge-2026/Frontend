@@ -123,6 +123,10 @@ test('waitlist create, edit and cancel preserve full conditions and use the curr
   assert.deepEqual(JSON.parse(writes[1].options.body), { conditions, notificationConsent: true, expectedVersion: 4 })
   assert.deepEqual(JSON.parse(writes[2].options.body), { expectedVersion: 5 })
   assert.equal(writes[2].options.headers['Idempotency-Key'], 'cancel-key')
+  const controller = new AbortController()
+  controller.abort()
+  await assert.rejects(saveWaitlist(conditions, '', { id: 'waiting', version: 5 }, 'MANUAL', controller.signal), { name: 'AbortError' })
+  assert.equal(writes.length, 3)
 })
 
 test('individual reservation and waitlist detail validate IDs and preserve agreed service description', async (t) => {

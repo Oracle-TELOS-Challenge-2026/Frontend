@@ -97,7 +97,11 @@ export function useNotifications(userId: string | null | undefined, notify: (tex
             if (controller.signal.aborted) return
             if (event.type === 'session.expired') throw new BackendApiError(401, 'SESSION_EXPIRED', '로그인이 만료됐어요. 다시 로그인해 주세요.')
             cursor = event.id
-            if (event.type === 'notification.created') announce([event.notification.title, event.notification.body].filter(Boolean).join(' · '), event.notification.id)
+            if (event.type === 'notification.created') {
+              // 빈자리 토스트는 푸시 구독과 관계없이 대기 후보 조회에서 한 번만 표시한다.
+              if (event.notification.type === 'VACANCY_MATCHED') void refresh()
+              else announce([event.notification.title, event.notification.body].filter(Boolean).join(' · '), event.notification.id)
+            }
             else {
               setState((previous) => ({ ...previous, items: previous.items.map((item) => item.id === event.notificationId ? { ...item, readAt: item.readAt ?? event.readAt } : item) }))
               void refresh()

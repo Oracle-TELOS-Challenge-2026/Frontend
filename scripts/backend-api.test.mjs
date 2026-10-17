@@ -55,6 +55,18 @@ test('missing or malformed CSRF prevents writes, and an HTTP failure is never re
   assert.equal(fetch.mock.callCount(), 1)
 })
 
+test('canceling a mutation during CSRF lookup prevents the write even if the response arrives', async (t) => {
+  const controller = new AbortController()
+  let finishCsrf
+  const fetch = t.mock.method(globalThis, 'fetch', () => new Promise((resolve) => { finishCsrf = resolve }))
+  const pending = mutateBackendApi('/api/v1/resource', { method: 'PUT', signal: controller.signal })
+  controller.abort()
+  finishCsrf(Response.json(success({ csrfToken: 'csrf' })))
+  await assert.rejects(pending, { name: 'AbortError' })
+  assert.equal(fetch.mock.callCount(), 1)
+  assert.equal(fetch.mock.calls[0].arguments[0], '/api/v1/auth/csrf')
+})
+
 test('204 does not attempt to parse JSON', async (t) => {
   t.mock.method(globalThis, 'fetch', async () => new Response(null, { status: 204 }))
   assert.deepEqual(await requestBackendApi('/api/v1/resource', { method: 'DELETE' }), { status: 204, data: null })

@@ -14,7 +14,7 @@ export function IntentDialog({ savedLocation, onClose, onSaved }: { savedLocatio
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const [location, setLocation] = useState(savedLocation)
-  const [locationLabel, setLocationLabel] = useState(savedLocation ? '마이페이지에 저장한 위치' : '')
+  const [locationLabel, setLocationLabel] = useState(savedLocation ? '최근 저장한 위치' : '')
   const [radius, setRadius] = useState('3000')
   const [price, setPrice] = useState('')
   const [keywords, setKeywords] = useState('')
@@ -72,6 +72,7 @@ export function IntentDialog({ savedLocation, onClose, onSaved }: { savedLocatio
       <label>방문 가능 시작<input type="datetime-local" value={start} onChange={(event) => { setStart(event.target.value); setConsent(false) }} required disabled={pending} /></label>
       <label>시술을 마칠 시간<input type="datetime-local" value={end} onChange={(event) => { setEnd(event.target.value); setConsent(false) }} required disabled={pending} /></label>
       <p>{locationLabel || '검색할 위치를 선택해 주세요.'}</p><button type="button" className="button secondary" disabled={pending} onClick={() => void act(locate)}>현재 위치 사용</button>
+      <p className="muted">주변 가게 대기는 화면을 이용하는 동안 최근 저장한 위치를 기준으로 갱신해요. 선택한 반경과 시간·가격은 유지돼요.</p>
       <label>이동 반경(m)<input type="number" min="100" max="10000" step="100" value={radius} onChange={(event) => { setRadius(event.target.value); setConsent(false) }} required disabled={pending} /></label>
       <label>최대 금액(원)<input type="number" min="0" max="10000000" step="1" value={price} onChange={(event) => { setPrice(event.target.value); setConsent(false) }} placeholder="제한 없음" disabled={pending} /></label>
       <label>요청 사항<input value={keywords} onChange={(event) => { setKeywords(event.target.value); setConsent(false) }} placeholder="쉼표로 구분해 주세요" disabled={pending} /></label>

@@ -61,12 +61,12 @@ export async function requestBackendApi(path: string, { method = 'GET', body, he
   }
 }
 
-export async function mutateBackendApi(path: string, { method = 'POST', body, idempotencyKey }: { method?: 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; idempotencyKey?: string } = {}) {
-  const { data } = await requestBackendApi('/api/v1/auth/csrf')
+export async function mutateBackendApi(path: string, { method = 'POST', body, idempotencyKey, signal }: { method?: 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; idempotencyKey?: string; signal?: AbortSignal } = {}) {
+  const { data } = await requestBackendApi('/api/v1/auth/csrf', { signal })
   if (typeof data?.csrfToken !== 'string' || !data.csrfToken.trim() || /\p{Cc}/u.test(data.csrfToken)) {
     throw new BackendApiError(0, 'INVALID_RESPONSE', '보안 확인 정보를 받지 못했어요. 다시 로그인해 주세요.')
   }
-  return requestBackendApi(path, { method, body, headers: {
+  return requestBackendApi(path, { method, body, signal, headers: {
     'X-CSRF-Token': data.csrfToken,
     ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
   } })
