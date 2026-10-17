@@ -97,9 +97,9 @@ test('publishing includes the selected boolean and retries reuse keys only for u
 
 test('owner request groups preserve application order and selection refreshes from the server result', async () => {
   const items = [request('a', 'slot-1', '첫 고객'), request('b', 'slot-2', '다른 빈자리'), request('c', 'slot-1', '다음 고객')]
-  const reads = [], updates = [], conflicts = []
+  const reads = [], updates = [], conflicts = [], refreshes = []
   let latest = items
-  const app = mount('ReservationRequests', { storeId: 'store-1', refreshKey: '0', onUpdated: (item) => updates.push(item), onConflict: () => conflicts.push(true) }, {
+  const app = mount('ReservationRequests', { storeId: 'store-1', refreshKey: '0', onRefresh: () => { refreshes.push(true); app.render({ refreshKey: '3' }) }, onUpdated: (item) => updates.push(item), onConflict: () => conflicts.push(true) }, {
     async readOwnerReservationRequests(...args) { reads.push(args); return latest },
   })
   app.render(); await tick()
@@ -124,6 +124,7 @@ test('owner request groups preserve application order and selection refreshes fr
   assert.doesNotMatch(text(app.render()), /첫 고객|다음 고객/)
   button(app.render(), '새로고침').props.onClick()
   app.render(); await tick()
+  assert.equal(refreshes.length, 1)
   assert.equal(reads.length, 4)
   app.unmount()
 })
@@ -132,11 +133,14 @@ test('request refresh cancels stale reads and reloads only when visible', async 
   const reads = []
   let resolveFirst
   const first = new Promise((resolve) => { resolveFirst = resolve })
-  const app = mount('ReservationRequests', { storeId: 'store-1', refreshKey: '0', onUpdated() {}, onConflict() {} }, {
+  const app = mount('ReservationRequests', { storeId: 'store-1', refreshKey: '0', onRefresh: () => app.render({ refreshKey: '1' }), onUpdated() {}, onConflict() {} }, {
     readOwnerReservationRequests(...args) { reads.push(args); return reads.length === 1 ? first : Promise.resolve([]) },
   })
-  app.render()
-  app.render({ refreshKey: '1' }); await tick()
+  const tree = app.render()
+  const refresh = button(tree, '새로고침 중…')
+  assert.equal(refresh.props.disabled, undefined)
+  assert.equal(refresh.props['aria-busy'], true)
+  refresh.props.onClick(); await tick()
   assert.equal(reads[0][1].aborted, true)
   resolveFirst([request('old', 'slot-1', '이전 신청')]); await tick()
   assert.doesNotMatch(text(app.render()), /이전 신청/)

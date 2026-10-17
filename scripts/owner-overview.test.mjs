@@ -215,6 +215,39 @@ test('canceling an owner reservation refreshes the timetable and reports cancell
   app.unmount()
 })
 
+for (const trigger of ['timetable', 'requests']) {
+  test(`${trigger} manual refresh reloads the whole owner schedule and replaces an older pending read`, async () => {
+    const requests = []
+    const confirmed = { id: 'reservation-a', status: 'CONFIRMED' }
+    const app = mount({ read: () => { const pending = deferred(); requests.push(pending); return pending.promise } })
+    requests[0].resolve({ ...timetable(), reservations: [confirmed] })
+    await tick()
+    const previousRefreshKey = find(app.render(), (node) => node.type === 'ReservationRequests').props.refreshKey
+    app.advance(30000)
+    const tree = app.render()
+    if (trigger === 'timetable') {
+      const refresh = button(tree, '타임테이블 새로고침')
+      assert.equal(refresh.props.disabled, undefined)
+      assert.equal(refresh.props['aria-busy'], true)
+      refresh.props.onClick()
+    } else find(tree, (node) => node.type === 'ReservationRequests').props.onRefresh()
+    const refreshed = app.render()
+    assert.equal(app.calls.length, 3)
+    assert.equal(app.calls[1][2].aborted, true)
+    assert.notEqual(find(refreshed, (node) => node.type === 'ReservationRequests').props.refreshKey, previousRefreshKey)
+    const canceled = { ...confirmed, status: 'CANCELED' }
+    requests[2].resolve({ ...timetable(today, 0), reservations: [canceled] })
+    await tick()
+    assert.deepEqual(summary(app.render()), ['0건', '0건'])
+    assert.equal(find(app.render(), (node) => node.type === 'OwnerSchedule').props.bookings[0].status, 'CANCELED')
+    assert.equal(button(app.render(), '타임테이블 새로고침').props['aria-busy'], false)
+    requests[1].resolve({ ...timetable(), reservations: [confirmed] })
+    await tick()
+    assert.equal(find(app.render(), (node) => node.type === 'OwnerSchedule').props.bookings[0].status, 'CANCELED')
+    app.unmount()
+  })
+}
+
 test('visible polling avoids overlapping requests, resumes on return and ignores unmounted responses', async () => {
   const requests = []
   const app = mount({ visibility: 'hidden', read: () => { const request = deferred(); requests.push(request); return request.promise } })
@@ -266,6 +299,46 @@ test('vacancy refresh preserves cached entries while pending and after a failure
   await tick()
   assert.equal(nodes(app.render()).filter((node) => node.type === 'article').length, 1)
   assert.match(text(app.render()), /빈자리 조회 실패/)
+  app.unmount()
+})
+
+test('vacancy manual refresh replaces cached entries with a new customer cancellation', async () => {
+  let latest = []
+  const app = mount({ page: 'Alerts', read: async () => latest })
+  await tick()
+  assert.equal(nodes(app.render()).filter((node) => node.type === 'article').length, 0)
+  latest = [vacancy()]
+  button(app.render(), '새로고침').props.onClick()
+  app.render()
+  await tick()
+  assert.equal(app.calls.length, 2)
+  assert.equal(app.serviceCalls.length, 2)
+  assert.equal(nodes(app.render()).filter((node) => node.type === 'article').length, 1)
+  assert.equal(app.cache.get(shop.id).vacancies[0].id, latest[0].id)
+  app.unmount()
+})
+
+test('vacancy manual refresh interrupts a background read and ignores its stale response', async () => {
+  const requests = []
+  const app = mount({ page: 'Alerts', read: () => { const pending = deferred(); requests.push(pending); return pending.promise } })
+  requests[0].resolve([])
+  await tick()
+  app.advance(30000)
+  const refresh = button(app.render(), '새로고침')
+  assert.equal(refresh.props['aria-busy'], true)
+  assert.equal(refresh.props.disabled, undefined)
+  refresh.props.onClick()
+  app.render()
+  assert.equal(app.calls.length, 3)
+  assert.equal(app.calls[1][1].aborted, true)
+  requests[2].resolve([vacancy()])
+  await tick()
+  assert.equal(nodes(app.render()).filter((node) => node.type === 'article').length, 1)
+  assert.equal(button(app.render(), '새로고침').props['aria-busy'], false)
+  requests[1].resolve([])
+  await tick()
+  assert.equal(nodes(app.render()).filter((node) => node.type === 'article').length, 1)
+  assert.equal(app.cache.get(shop.id).vacancies[0].id, 'vacancy-a')
   app.unmount()
 })
 

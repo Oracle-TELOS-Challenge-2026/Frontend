@@ -26,7 +26,7 @@ export function NotificationsPage({ notifications, onOpen }: { notifications: Re
   }
 
   return <div className="page">
-    <header className="customer-record-heading notification-heading"><div><p className="eyebrow">새로운 소식을 모았어요</p><h1 className="page-heading">알림</h1><p className="muted">읽지 않은 알림 {notifications.unreadCount}개</p></div><button type="button" className="icon-button refresh-button" aria-label="새로고침" title="새로고침" disabled={notifications.loading} aria-busy={notifications.loading} onClick={() => void notifications.refresh()}><Icon name="refresh" size={20} /></button></header>
+    <header className="customer-record-heading notification-heading"><div><p className="eyebrow">새로운 소식을 모았어요</p><h1 className="page-heading">알림</h1><p className="muted">읽지 않은 알림 {notifications.unreadCount}개</p></div><button type="button" className="icon-button refresh-button" aria-label="새로고침" title="새로고침" aria-busy={notifications.loading} onClick={() => void notifications.refresh()}><Icon name="refresh" size={20} /></button></header>
     {notifications.streamError && <p className="muted" role="status">{notifications.streamError}</p>}
     {(error || notifications.error) && <p className="form-error" role="alert">{error || notifications.error}</p>}
     {notifications.loading && !notifications.items.length ? <LoadingIndicator label="알림을 불러오고 있어요…" /> : !notifications.items.length && !notifications.error ? <div className="empty-state"><Icon name="bell" size={35} /><h2>아직 받은 알림이 없어요</h2><p>새 채팅과 예약 소식, 조건에 맞는 빈자리를 이곳에 알려드려요.</p></div> : notifications.items.map((item) => <article className="waitlist-card" key={item.id}>

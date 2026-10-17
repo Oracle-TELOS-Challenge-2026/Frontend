@@ -26,6 +26,7 @@ export function OwnerHome({ ownerShop, cache, refreshKey = '' }: { ownerShop: Re
   const [revision, setRevision] = useState(0)
   const [notice, setNotice] = useState('')
   const [result, setResult] = useState<HomeResult | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const storeId = ownerShop?.id
   const key = `${storeId}:${selectedDay}`
   const current = result?.key === key ? result : cache.get(key)
@@ -38,6 +39,7 @@ export function OwnerHome({ ownerShop, cache, refreshKey = '' }: { ownerShop: Re
       if (stopped || request || document.visibilityState !== 'visible') return
       const controller = new AbortController()
       request = controller
+      setRefreshing(true)
       try {
         const data = await readOwnerTimetable(storeId!, selectedDay, controller.signal)
         if (controller.signal.aborted || stopped) return
@@ -46,11 +48,13 @@ export function OwnerHome({ ownerShop, cache, refreshKey = '' }: { ownerShop: Re
         setResult(next)
       } catch (error) {
         if (!controller.signal.aborted && !stopped) setResult({ ...cache.get(key), key, error: error instanceof Error ? error.message : '예약을 불러오지 못했어요.' })
-      } finally { if (request === controller) request = undefined }
+      } finally {
+        if (request === controller) { request = undefined; if (!stopped) setRefreshing(false) }
+      }
     }
     function resume() {
       if (document.visibilityState === 'visible') void refresh()
-      else { request?.abort(); request = undefined }
+      else { request?.abort(); request = undefined; setRefreshing(false) }
     }
     void refresh()
     // shortcut: 모든 예약 변경이 서버 이벤트로 전달되면 이 주기 조회를 대체한다.
@@ -87,13 +91,14 @@ export function OwnerHome({ ownerShop, cache, refreshKey = '' }: { ownerShop: Re
         <div><p>{selectedDay === today ? '오늘' : '선택한 날'} 전체 예약</p><strong>{current?.data?.summary.total ?? '—'}<small>건</small></strong></div>
         <div><p>남은 확정 예약</p><strong>{current?.data?.summary.remainingConfirmed ?? '—'}<small>건</small></strong></div>
       </div>
-      {storeId && <ReservationRequests key={storeId} storeId={storeId} refreshKey={`${refreshKey}:${revision}`} onUpdated={reservationUpdated} onConflict={() => setRevision((value) => value + 1)} />}
+      {storeId && <ReservationRequests key={storeId} storeId={storeId} refreshKey={`${refreshKey}:${revision}`} onRefresh={() => setRevision((value) => value + 1)} onUpdated={reservationUpdated} onConflict={() => setRevision((value) => value + 1)} />}
       <div className="owner-date-heading">
         <h2>{new Date(`${selectedDay}T12:00:00+09:00`).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', timeZone: 'Asia/Seoul' })}</h2>
         <div className="owner-date-controls">
           <button className="icon-button" type="button" onClick={() => moveWeek(-7)} aria-label="이전 주"><Icon name="chevron-right" /></button>
           <button className="button secondary small" type="button" onClick={() => { setSelectedDay(today); setWeekStart(weekStartFor(today)) }}>오늘</button>
           <button className="icon-button" type="button" onClick={() => moveWeek(7)} aria-label="다음 주"><Icon name="chevron-right" /></button>
+          {storeId && <button className="icon-button refresh-button" type="button" aria-label="타임테이블 새로고침" title="타임테이블 새로고침" aria-busy={refreshing} onClick={() => setRevision((value) => value + 1)}><Icon name="refresh" size={20} /></button>}
         </div>
       </div>
       <div className="owner-week" aria-label="예약 날짜 선택">

@@ -79,7 +79,7 @@ export function ReservationsPage({ cache, refreshKey = '', onBookingChanged }: {
     finally { busy.current = false; setPending(false) }
   }
 
-  return <div className="page"><header className="customer-record-heading notification-heading"><div><p className="eyebrow">나를 위한 시간이 기다려요</p><h1 className="page-heading">{id ? '예약 상세' : '예약내역'}</h1>{id && <Link to="/customer/reservations">전체 예약내역</Link>}<p className="muted">기분 좋은 약속, 여기 모아두었어요.</p></div><button type="button" className="icon-button refresh-button" aria-label="새로고침" title="새로고침" disabled={loading} aria-busy={loading} onClick={reload}><Icon name="refresh" size={20} /></button></header>
+  return <div className="page"><header className="customer-record-heading notification-heading"><div><p className="eyebrow">나를 위한 시간이 기다려요</p><h1 className="page-heading">{id ? '예약 상세' : '예약내역'}</h1>{id && <Link to="/customer/reservations">전체 예약내역</Link>}<p className="muted">기분 좋은 약속, 여기 모아두었어요.</p></div><button type="button" className="icon-button refresh-button" aria-label="새로고침" title="새로고침" aria-busy={loading} onClick={reload}><Icon name="refresh" size={20} /></button></header>
     {error && <div className="form-error" role="alert">{groups && '저장된 예약내역을 표시하고 있어요. '}{error}<button className="button secondary" onClick={reload}>다시 시도</button></div>}
     {!groups && loading ? <LoadingIndicator label="예약내역을 불러오고 있어요…" /> : groups && <>
       <div className="customer-note"><Icon name="calendar" size={20} /><span>{groups[0].length ? <>예약 확정 <strong>{groups[0].filter((item) => item.status === 'CONFIRMED').length}건</strong> · 사장님 확인 대기 <strong>{groups[0].filter((item) => item.status === 'PENDING').length}건</strong></> : '아직 다가오는 예약이 없어요.'}</span></div>

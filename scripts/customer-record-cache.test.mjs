@@ -114,6 +114,38 @@ test('initial record requests show a loader, while reloads keep the loaded recor
   }
 })
 
+test('manual refresh replaces an unfinished automatic request and ignores its late cached records', async () => {
+  for (const page of pages) {
+    for (const id of [undefined, 'record-a']) {
+      const previous = deferred(), latest = deferred()
+      let pending = previous
+      const key = id ? `detail:${id}` : 'list'
+      const updated = page === 'Waitlist' ? { ...wait, status: 'CANCELED', availability: 'CLOSED' } : { ...reservation, status: 'CANCELED', allowedActions: [] }
+      const updatedRecords = id ? page === 'Waitlist' ? [updated] : [[], [], [updated]] : empty(page)
+      const app = mount({ page, id, cache: new Map([[key, records(page)]]), read: async (kind, scope) => {
+        const data = await pending.promise
+        return kind === 'detail' ? data : select(page, data, scope)
+      } })
+      const refresh = button(app.render(), '새로고침')
+      assert.notEqual(refresh.props.disabled, true, `${page}: refresh must stay clickable during revalidation`)
+      assert.equal(refresh.props['aria-busy'], true)
+      const previousCalls = [...app.calls]
+      pending = latest
+      refresh.props.onClick(); app.render()
+      assert.equal(app.calls.length, previousCalls.length * 2)
+      assert.ok(previousCalls.every((call) => call.signal.aborted))
+      latest.resolve(id ? updated : updatedRecords); await tick()
+      assert.equal(button(app.render(), '새로고침').props['aria-busy'], false)
+      assert.deepEqual(JSON.parse(JSON.stringify(app.cache.get(key))), updatedRecords)
+      assert.equal(cards(app.render()), id ? 1 : 0)
+      if (id) assert.match(text(app.render()), page === 'Waitlist' ? /대기 종료/ : /예약 취소/)
+      previous.resolve(id ? page === 'Waitlist' ? wait : reservation : records(page)); await tick()
+      assert.deepEqual(JSON.parse(JSON.stringify(app.cache.get(key))), updatedRecords)
+      app.unmount()
+    }
+  }
+})
+
 test('pending applications stay upcoming without counting as confirmed and expose withdrawal instead of cancellation', async () => {
   let item = { ...reservation, status: 'PENDING', version: 3 }
   const app = mount({ page: 'Reservations', id: item.id, read: async () => item, mutate: async () => { item = { ...item, status: 'WITHDRAWN', allowedActions: [] } } })

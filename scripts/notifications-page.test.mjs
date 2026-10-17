@@ -14,7 +14,7 @@ const item = { id: 'notice-1', type: 'VACANCY_MATCHED', title: '빈자리 알림
 function nodes(tree) { return Array.isArray(tree) ? tree.flatMap(nodes) : tree?.props ? [tree, ...nodes(tree.props.children)] : [] }
 function text(tree) { return Array.isArray(tree) ? tree.map(text).join('') : tree?.props ? text(tree.props.children) : tree == null || typeof tree === 'boolean' ? '' : String(tree) }
 
-function mount(markRead, notification = item) {
+function mount(markRead, notification = item, overrides = {}) {
   const state = [], paths = [], exports = {}
   let cursor = 0
   const jsx = (type, props) => ({ type, props })
@@ -31,7 +31,7 @@ function mount(markRead, notification = item) {
       throw new Error(`Unexpected import: ${name}`)
     },
   }))
-  const render = () => { cursor = 0; return exports.NotificationsPage({ notifications: { items: [notification], unreadCount: 1, markRead }, onOpen: (path) => paths.push(path) }) }
+  const render = () => { cursor = 0; return exports.NotificationsPage({ notifications: { items: [notification], unreadCount: 1, markRead, ...overrides }, onOpen: (path) => paths.push(path) }) }
   return { render, paths, click(label) { const button = nodes(render()).find((node) => node.type === 'button' && text(node) === label); assert.ok(button); button.props.onClick() } }
 }
 
@@ -73,4 +73,15 @@ test('read failures prevent navigation, read-only actions stay put, and other no
     app.click(notificationActionLabel(notification)); await tick()
     assert.deepEqual(app.paths, [notification.path])
   }
+})
+
+test('manual refresh remains clickable during an automatic refresh', () => {
+  let refreshes = 0
+  const app = mount(async () => item, item, { loading: true, refresh: async () => { refreshes++ } })
+  const button = nodes(app.render()).find((node) => node.type === 'button' && node.props['aria-label'] === '새로고침')
+  assert.ok(button)
+  assert.ok(!button.props.disabled)
+  assert.equal(button.props['aria-busy'], true)
+  button.props.onClick()
+  assert.equal(refreshes, 1)
 })

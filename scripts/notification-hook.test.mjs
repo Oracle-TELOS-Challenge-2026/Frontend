@@ -12,12 +12,13 @@ const compiled = ts.transpileModule(readFileSync(new URL('../src/hooks/useNotifi
 const tick = () => new Promise((resolve) => setImmediate(resolve))
 
 async function mount(t) {
-  const effects = [], calls = { lists: 0, toasts: [] }
+  const effects = [], states = [], calls = { lists: 0, toasts: [] }
   let stream
   const react = {
     useState(initial) {
-      let value = initial
-      return [value, (next) => { value = typeof next === 'function' ? next(value) : next }]
+      const index = states.length
+      states.push(initial)
+      return [initial, (next) => { states[index] = typeof next === 'function' ? next(states[index]) : next }]
     },
     useRef: (current) => ({ current }), useCallback: (callback) => callback,
     useEffect: (setup) => effects.push(setup),
@@ -42,13 +43,13 @@ async function mount(t) {
       throw new Error(`Unexpected import: ${name}`)
     },
   }))
-  exports.useNotifications('user-a', (message) => calls.toasts.push(message))
+  const hook = exports.useNotifications('user-a', (message) => calls.toasts.push(message))
   const cleanups = effects.map((setup) => setup())
   const cleanup = () => cleanups.splice(0).forEach((stop) => stop?.())
   t.after(cleanup)
   await tick()
   calls.lists = 0
-  return { calls, cleanup, created(type, id = 'notice-1') {
+  return { calls, cleanup, notifications, refresh: hook.refresh, state: () => states[0], created(type, id = 'notice-1') {
     stream.onEvent({ type: 'notification.created', id: `event-${id}`, notification: { id, type, title: '알림', body: '내용' } })
   } }
 }
@@ -78,4 +79,39 @@ test('late SSE events after cleanup cannot refresh or toast', async (t) => {
   await tick()
   assert.equal(app.calls.lists, 0)
   assert.deepEqual(app.calls.toasts, [])
+})
+
+test('manual refresh starts a new request and ignores an older response arriving afterward', async (t) => {
+  const app = await mount(t)
+  const requests = []
+  t.mock.method(app.notifications, 'fetchNotifications', (cursor, signal) => new Promise((resolve) => requests.push({ cursor, signal, resolve })))
+  const automatic = app.refresh()
+  const manual = app.refresh()
+  assert.equal(requests.length, 2)
+  assert.equal(requests[0].signal.aborted, true)
+  assert.equal(requests[1].signal.aborted, false)
+  assert.equal(requests[1].cursor, undefined)
+  assert.equal(app.state().loading, true)
+
+  const updated = { id: 'new', createdAt: '2026-10-17T12:02:00+09:00', readAt: null }
+  requests[1].resolve({ items: [updated], unreadCount: 1, nextCursor: null })
+  await manual
+  requests[0].resolve({ items: [], unreadCount: 0, nextCursor: null })
+  await automatic
+  assert.equal(app.state().items[0].id, updated.id)
+  assert.equal(app.state().unreadCount, 1)
+  assert.equal(app.state().loading, false)
+})
+
+test('manual refresh surfaces failure and can retry without waiting for a stream event', async (t) => {
+  const app = await mount(t)
+  const fetch = t.mock.method(app.notifications, 'fetchNotifications', async () => { throw new Error('새 알림 조회 실패') })
+  await app.refresh()
+  assert.equal(app.state().error, '새 알림 조회 실패')
+  assert.equal(app.state().loading, false)
+  fetch.mock.mockImplementation(async () => ({ items: [], unreadCount: 0, nextCursor: null }))
+  await app.refresh()
+  assert.equal(fetch.mock.calls.length, 2)
+  assert.equal(app.state().error, '')
+  assert.equal(app.state().loading, false)
 })

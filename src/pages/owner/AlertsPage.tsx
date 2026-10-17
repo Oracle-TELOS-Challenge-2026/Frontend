@@ -111,7 +111,7 @@ export function OwnerAlerts({ ownerShop, notify, cache, refreshKey = '' }: { own
     {current?.error && <div role="alert"><p>{current.vacancies && '저장된 내역을 표시하고 있어요. '}{current.error}</p><button className="button secondary" type="button" onClick={() => setRevision((value) => value + 1)}>다시 조회</button></div>}
     {!storeId ? <p className="empty-state">매장을 등록하면 빈자리 알림을 확인할 수 있어요.</p> : !current ? <LoadingIndicator label="빈자리 내역을 불러오고 있어요" /> : current.vacancies && <>
       <div className="owner-info"><Icon name="sparkle" /><div><strong>{available > 0 ? `${available}개의 빈자리가 기다리고 있어요` : '발행을 기다리는 빈자리가 없어요'}</strong><p>취소된 시간에 특별한 가격을 더해보세요.<br />이 시간을 기다리던 고객과 만날 수 있어요.</p></div></div>
-      <div className="owner-list-heading"><h2>취소 · 노쇼 내역 <span>{alerts.length}</span></h2><button className="icon-button refresh-button" type="button" aria-label="새로고침" title="새로고침" aria-busy={refreshing} disabled={refreshing} onClick={() => setRevision((value) => value + 1)}><Icon name="refresh" size={20} /></button></div>
+      <div className="owner-list-heading"><h2>취소 · 노쇼 내역 <span>{alerts.length}</span></h2><button className="icon-button refresh-button" type="button" aria-label="새로고침" title="새로고침" aria-busy={refreshing} onClick={() => setRevision((value) => value + 1)}><Icon name="refresh" size={20} /></button></div>
       <div className="owner-alert-list">
         {alerts.map((alert) => <article className="owner-alert-card" key={alert.id}>
           <div className="owner-alert-top"><span className={`badge ${alert.status === 'DRAFT' ? 'coral' : ''}`}>{alert.reason === 'NO_SHOW' ? '노쇼 접수' : '예약 취소'}</span><time dateTime={alert.occurredAt}>{dateLabel(alert.occurredAt)} {timeLabel(alert.occurredAt)} 접수</time></div>

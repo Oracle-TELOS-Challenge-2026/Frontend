@@ -4,11 +4,10 @@ import { dateLabel, money, timeLabel } from '../../lib/format'
 import { readOwnerReservationRequests } from '../../lib/owner-api'
 import type { OwnerReservationDetail, OwnerReservationRequest } from '../../lib/owner-api'
 
-export function ReservationRequests({ storeId, refreshKey, onUpdated, onConflict }: { storeId: string; refreshKey: string; onUpdated: (reservation: OwnerReservationDetail) => void; onConflict: () => void }) {
+export function ReservationRequests({ storeId, refreshKey, onRefresh, onUpdated, onConflict }: { storeId: string; refreshKey: string; onRefresh: () => void; onUpdated: (reservation: OwnerReservationDetail) => void; onConflict: () => void }) {
   const [items, setItems] = useState<OwnerReservationRequest[] | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-  const [revision, setRevision] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
 
   useEffect(() => {
@@ -40,13 +39,13 @@ export function ReservationRequests({ storeId, refreshKey, onUpdated, onConflict
       window.removeEventListener('online', resume)
       document.removeEventListener('visibilitychange', resume)
     }
-  }, [storeId, refreshKey, revision])
+  }, [storeId, refreshKey])
 
   const groups = new Map<string, OwnerReservationRequest[]>()
   for (const item of items ?? []) groups.set(item.slotId, [...(groups.get(item.slotId) ?? []), item])
 
   return <section className="owner-slots" aria-label="예약 신청 목록">
-    <div className="owner-list-heading"><h2>예약 신청</h2><button className="button secondary small" type="button" disabled={loading} onClick={() => setRevision((value) => value + 1)}>새로고침</button></div>
+    <div className="owner-list-heading"><h2>예약 신청</h2><button className="button secondary small" type="button" aria-busy={loading} onClick={onRefresh}>{loading ? '새로고침 중…' : '새로고침'}</button></div>
     <p className="muted">빈자리별 신청순으로 보여드려요. 한 명을 선택하면 같은 빈자리의 다른 신청은 마감돼요.</p>
     {loading && !items && <p role="status">예약 신청을 불러오는 중이에요.</p>}
     {error && <p className="owner-form-error" role="alert">{items && '저장된 신청을 표시하고 있어요. '}{error}</p>}
