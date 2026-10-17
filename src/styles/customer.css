@@ -24,10 +24,14 @@
 .map-pin-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--soft-surface); color: var(--ink); font-size: 16px; }
 .map-pin.discount .map-bubble { border: 2px solid var(--accent); padding: 3px 9px 3px 3px; box-shadow: 0 0 0 2px #eb73731a, 0 2px 6px #33333314; }
 .map-pin.discount .map-pin-icon { background: var(--peach); color: var(--accent-dark); }
-.map-pin.selected .map-bubble { background: var(--primary); color: var(--on-primary); border-color: var(--primary); box-shadow: 0 3px 10px #eb737326; }
+.map-pin-deal { padding: 2px 4px; border-radius: 4px; background: var(--peach); color: var(--accent-dark); font-size: 10px; font-weight: 750; }
+.map-pin.selected .map-bubble { background: var(--ink); color: white; border-color: var(--ink); box-shadow: 0 3px 10px #33333326; }
+.map-pin.discount.selected .map-bubble { background: var(--primary-dark); border-color: var(--primary-dark); box-shadow: 0 3px 10px #eb737340; }
 .map-pin.selected .map-bubble::after { content: ''; position: absolute; bottom: -5px; left: calc(50% - 5px); width: 8px; height: 8px; background: inherit; transform: rotate(45deg); }
-.map-pin.selected .map-pin-icon { background: #ffffff20; color: var(--on-primary); }
+.map-pin.selected .map-pin-icon, .map-pin.selected .map-pin-deal { background: #ffffff20; color: white; }
 .map-pin-name { margin-top: 6px; color: var(--ink); font-size: 11px; font-weight: 750; text-shadow: 0 1px 2px white, 0 -1px 2px white, 1px 0 2px white, -1px 0 2px white; }
+.map-pin.selected .map-pin-name { padding: 2px 7px; border-radius: 6px; background: var(--ink); color: white; text-shadow: none; }
+.map-pin.discount.selected .map-pin-name { background: var(--primary-dark); }
 .map-pin:focus-visible .map-bubble { outline: 3px solid var(--primary-dark); outline-offset: 3px; }
 .map-caption { position: absolute; z-index: 1; pointer-events: none; left: 12px; top: 10px; color: var(--muted); font-size: 10px; background: #fffffff0; padding: 5px 8px; border-radius: 7px; }
 .map-search-area { position: absolute; z-index: 1; top: 44px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--primary-dark); box-shadow: 0 3px 10px #33333312; font-size: 13px; font-weight: 700; white-space: nowrap; }

@@ -27,7 +27,7 @@ export function ShopMapMarker({ instance, shop, slot, selected, onSelect }: { in
   useEffect(() => { overlayRef.current?.setZIndex(selected ? 2 : 1) }, [instance, latitude, longitude, selected])
 
   return createPortal(<button type="button" className={`map-pin ${discounted ? 'discount' : ''} ${selected ? 'selected' : ''}`} aria-label={`${shop.name}, ${shop.category}, ${slot ? discounted ? '빈자리 특가' : '예약 가능' : '빈자리 알림 신청 가능'}, ${priceLabel}`} aria-pressed={selected} aria-controls="shop-results-list" onClick={() => onSelect(shop.id)}>
-    <span className="map-bubble"><span className="map-pin-icon"><Icon name={SHOP_CATEGORIES.find((item) => item.name === shop.category)?.icon ?? 'pin'} size={16} /></span><strong>{priceLabel}</strong></span>
+    <span className="map-bubble"><span className="map-pin-icon"><Icon name={SHOP_CATEGORIES.find((item) => item.name === shop.category)?.icon ?? 'pin'} size={16} /></span>{discounted && <span className="map-pin-deal">특가</span>}<strong>{priceLabel}</strong></span>
     <span className="map-pin-name">{shop.name}</span>
   </button>, content)
 }
