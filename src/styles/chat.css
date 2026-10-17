@@ -308,6 +308,12 @@
   gap: 12px;
 }
 
+@media (max-width: 370px) {
+  .chat-review-row:has(input[type="date"]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 480px) {
   .chat-heading {
     gap: 8px;

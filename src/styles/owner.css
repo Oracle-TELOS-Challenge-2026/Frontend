@@ -84,7 +84,7 @@
 .owner-form-label { display: block; margin-bottom: 9px; font-size: 13px; font-weight: 750; }
 .owner-form textarea, .owner-form input { width: 100%; border: 1px solid var(--line); border-radius: 13px; background: var(--background); color: var(--ink); font: inherit; }
 .owner-form textarea { min-height: 98px; padding: 13px; resize: vertical; font-size: 14px; }
-.owner-form fieldset { margin: 22px 0 15px; padding: 0; border: 0; }
+.owner-form fieldset { min-width: 0; margin: 22px 0 15px; padding: 0; border: 0; }
 .owner-discount-toggle { display: flex; gap: 8px; }
 .owner-discount-toggle label { position: relative; flex: 1; cursor: pointer; }
 .owner-discount-toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
