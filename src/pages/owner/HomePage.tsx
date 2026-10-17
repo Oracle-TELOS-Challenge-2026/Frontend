@@ -106,12 +106,12 @@ export function OwnerHome({ ownerShop, cache, refreshKey = '' }: { ownerShop: Re
         })}
       </div>
       {current?.error && <div role="alert"><p>{current.data && '저장된 일정을 표시하고 있어요. '}{current.error}</p><button className="button secondary" type="button" onClick={() => setRevision((value) => value + 1)}>다시 조회</button></div>}
-      {!storeId ? <p className="empty-state">매장을 등록하면 예약 일정을 확인할 수 있어요.</p> : !current ? <LoadingIndicator label="예약 일정을 불러오고 있어요" /> : current.data && <>
+      {!storeId ? <p className="empty-state">매장을 등록하면 예약 일정을 확인할 수 있어요.</p> : !current ? <LoadingIndicator label="예약 일정을 불러오고 있어요" /> : current.data && ownerShop && <>
         <section className="owner-slots" aria-label="예약 가능한 시간">
           <div className="owner-list-heading"><h2>예약 가능한 시간</h2><button className="button small" type="button" onClick={() => { setNotice(''); setRegistering(true) }}>예약 시간 등록</button></div>
           {current.data.availableSlots.length ? <ul className="owner-slot-list">{current.data.availableSlots.map((slot) => <li key={slot.id}><div><strong>{timeLabel(slot.startAt)} ~ {timeLabel(slot.endAt)}</strong><p>{current.services?.find((service) => service.id === slot.serviceId)?.name ?? '등록된 시술'} · {slot.instantBooking === false ? '사장님 선택' : '즉시확정'}</p></div><span>{money(slot.price.payable)}</span></li>)}</ul> : <p className="muted">이 날짜에 예약 가능한 시간이 없어요.<br />시술과 시작 시간을 등록하면 고객이 예약할 수 있어요.</p>}
         </section>
-        <OwnerSchedule key={key} storeId={storeId} bookings={current.data.reservations} day={selectedDay} onUpdated={reservationUpdated} onConflict={() => setRevision((value) => value + 1)} />
+        <OwnerSchedule key={key} storeId={storeId} bookings={current.data.reservations} day={selectedDay} openingHours={ownerShop.openingHours} onUpdated={reservationUpdated} onConflict={() => setRevision((value) => value + 1)} />
       </>}
       {registering && ownerShop && current?.services && <SlotDialog shop={ownerShop} services={current.services} day={selectedDay} onClose={(recheck) => { setRegistering(false); if (recheck) setRevision((value) => value + 1) }} onCreated={(slot) => {
         const day = todayInSeoul(new Date(slot.startAt))

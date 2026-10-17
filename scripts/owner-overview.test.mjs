@@ -9,7 +9,8 @@ const compiled = Object.fromEntries(['Home', 'Alerts'].map((page) => [page, ts.t
 }).outputText]))
 const tick = () => new Promise((resolve) => setImmediate(resolve))
 const today = '2026-10-19'
-const shop = { id: 'store-a', name: '첫 번째 가게' }
+const openingHours = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map((dayOfWeek) => ({ dayOfWeek, opensAt: '09:00', closesAt: '18:00', closed: false }))
+const shop = { id: 'store-a', name: '첫 번째 가게', openingHours }
 const timetable = (date = today, total = 2) => ({ date, summary: { total, remainingConfirmed: total }, resources: [], reservations: [], availableSlots: [] })
 const vacancy = (id = 'vacancy-a') => ({ id, storeId: shop.id, originalServiceId: 'service-a', reason: 'CANCELLATION', status: 'DRAFT', availableFrom: '2099-10-19T10:00:00+09:00', availableUntil: '2099-10-19T12:00:00+09:00', occurredAt: '2099-10-18T10:00:00+09:00', originalPrice: 30000 })
 
@@ -114,6 +115,20 @@ test('closing an untouched slot dialog preserves the summary without another req
   app.unmount()
 })
 
+test('home passes refreshed shop opening hours to the existing timetable', async () => {
+  const app = mount()
+  await tick()
+  const initial = find(app.render(), (node) => node.type === 'OwnerSchedule')
+  assert.equal(initial.props.openingHours, shop.openingHours)
+  const updatedHours = openingHours.map((item) => item.dayOfWeek === 'MON' ? { ...item, closed: true, opensAt: null, closesAt: null } : item)
+  const updated = find(app.render({ ownerShop: { ...shop, openingHours: updatedHours } }), (node) => node.type === 'OwnerSchedule')
+  assert.equal(updated.props.openingHours, updatedHours)
+  assert.equal(updated.key, initial.key)
+  await tick()
+  assert.equal(app.calls.length, 1)
+  app.unmount()
+})
+
 test('saved and uncertain slot results revalidate without clearing the current summary', async () => {
   const pending = deferred()
   let reads = 0
@@ -157,7 +172,7 @@ test('date caches restore immediately across navigation while stores and account
   app.unmount()
   const returned = mount({ cache: app.cache, read })
   assert.deepEqual(summary(returned.render()), ['2건', '2건'])
-  assert.deepEqual(summary(returned.render({ ownerShop: { id: 'store-b', name: '다른 가게' } })), ['—건', '—건'])
+  assert.deepEqual(summary(returned.render({ ownerShop: { ...shop, id: 'store-b', name: '다른 가게' } })), ['—건', '—건'])
   returned.unmount()
   const otherAccount = mount({ cache: new Map(), read })
   assert.deepEqual(summary(otherAccount.render()), ['—건', '—건'])

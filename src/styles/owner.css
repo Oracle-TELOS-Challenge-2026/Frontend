@@ -40,7 +40,7 @@
 .owner-booking strong { font-size: 14px; font-weight: 750; }
 .owner-booking > span { color: var(--primary-dark); font-size: 12px; }
 .owner-booking svg { position: absolute; right: 12px; top: calc(50% - 9px); width: 18px; height: 18px; opacity: .5; }
-.owner-no-bookings { position: absolute; top: 90px; left: 16px; right: 12px; padding: 28px 15px; border-radius: 18px; background: var(--background); text-align: center; }
+.owner-no-bookings { margin-bottom: 24px; padding: 28px 15px; border-radius: 18px; background: var(--background); text-align: center; }
 .owner-no-bookings svg { margin: 0 auto 12px; color: var(--primary); }
 .owner-no-bookings p { color: var(--muted); font-size: 13px; line-height: 1.7; }
 .owner-info { display: flex; align-items: flex-start; gap: 12px; padding: 17px; margin: 20px 0 25px; border-radius: 18px; background: var(--peach); }

@@ -17,6 +17,7 @@ const button = (tree, label) => nodes(tree).find((node) => node.type === 'button
 const service = { id: 'service-1', active: true, name: '네일', basePrice: 50000, durationMinutes: 60 }
 const vacancy = { id: 'slot-1', storeId: 'store-1', originalServiceId: service.id, status: 'DRAFT', version: 3, availableFrom: '2099-10-18T10:00:00+09:00', availableUntil: '2099-10-18T12:00:00+09:00' }
 const request = (id, slotId, name, createdAt = '2099-10-17T10:00:00+09:00') => ({ id, slotId, createdAt, status: 'PENDING', startAt: vacancy.availableFrom, endAt: '2099-10-18T11:00:00+09:00', customer: { displayName: name }, service, price: { payable: 40000 } })
+const openingHours = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map((dayOfWeek) => ({ dayOfWeek, opensAt: '09:00', closesAt: '18:00', closed: false }))
 
 function mount(name, initialProps, api = {}) {
   const slots = [], effects = []
@@ -146,7 +147,7 @@ test('request refresh cancels stale reads and reloads only when visible', async 
 test('pending and ended requests never occupy the confirmed timetable', () => {
   const statuses = ['PENDING', 'CONFIRMED', 'COMPLETED', 'REJECTED', 'WITHDRAWN', 'EXPIRED', 'CANCELED', 'NO_SHOW']
   const bookings = statuses.map((status) => ({ ...request(status, 'slot-1', status), status }))
-  const app = mount('Schedule', { storeId: 'store-1', bookings, day: '2099-10-18', onUpdated() {} })
+  const app = mount('Schedule', { storeId: 'store-1', bookings, openingHours, day: '2099-10-18', onUpdated() {} })
   const tree = app.render()
   assert.deepEqual(nodes(tree).filter((node) => node.props.className === 'owner-booking').map((node) => node.key), ['CONFIRMED', 'COMPLETED'])
   assert.doesNotMatch(text(tree), /PENDING|REJECTED|WITHDRAWN|EXPIRED/)
@@ -154,5 +155,63 @@ test('pending and ended requests never occupy the confirmed timetable', () => {
   const pendingOnly = app.render({ bookings: [bookings[0]] })
   assert.equal(nodes(pendingOnly).filter((node) => node.props.className === 'owner-booking').length, 0)
   assert.match(text(pendingOnly), /아직 확정된 예약이 없어요/)
+  app.unmount()
+})
+
+test('the timetable follows each weekday and updated opening hours down to the minute', () => {
+  const hours = openingHours.map((item) => item.dayOfWeek === 'MON' ? { ...item, opensAt: '10:30', closesAt: '18:45' } : item.dayOfWeek === 'TUE' ? { ...item, opensAt: '13:15', closesAt: '15:45' } : item)
+  const app = mount('Schedule', { storeId: 'store-1', bookings: [], openingHours: hours, day: '2026-10-19', onUpdated() {} })
+  function check(tree, start, end, height) {
+    const grid = nodes(tree).find((node) => node.props.className === 'owner-timetable')
+    assert.ok(grid)
+    const labels = nodes(grid).filter((node) => node.props.className === 'owner-hour').map(text)
+    assert.equal(labels[0], start)
+    assert.equal(labels.at(-1), end)
+    assert.equal(grid.props.style.height, height)
+    assert.equal(nodes(grid).some((node) => node.props.className === 'owner-no-bookings'), false)
+    assert.match(text(tree), /아직 확정된 예약이 없어요/)
+  }
+  check(app.render(), '10:30', '18:45', 594)
+  check(app.render({ day: '2026-10-20' }), '13:15', '15:45', 180)
+  check(app.render({ openingHours: hours.map((item) => item.dayOfWeek === 'TUE' ? { ...item, closesAt: '13:45' } : item) }), '13:15', '13:45', 36)
+  app.unmount()
+})
+
+test('closed dates hide the empty grid and preserve cancellation and no-show details', () => {
+  const hours = openingHours.map((item) => item.dayOfWeek === 'MON' ? { ...item, closed: true, opensAt: null, closesAt: null } : item)
+  const app = mount('Schedule', { storeId: 'store-1', bookings: [], openingHours: hours, day: '2026-10-19', onUpdated() {} })
+  assert.equal(nodes(app.render()).some((node) => node.props.className === 'owner-timetable'), false)
+  assert.match(text(app.render()), /휴무/)
+  const bookings = ['CANCELED', 'NO_SHOW'].map((status) => ({ ...request(status, 'slot-1', status), status, startAt: '2026-10-19T10:00:00+09:00', endAt: '2026-10-19T11:00:00+09:00' }))
+  const tree = app.render({ bookings })
+  assert.equal(nodes(tree).some((node) => node.props.className === 'owner-timetable'), false)
+  assert.match(text(tree), /취소 · 노쇼 내역.*CANCELED.*NO_SHOW/)
+  nodes(tree).find((node) => node.type === 'button' && node.key === 'CANCELED').props.onClick()
+  assert.equal(nodes(app.render()).find((node) => node.type === 'OwnerReservationDialog').props.reservationId, 'CANCELED')
+  app.unmount()
+})
+
+test('existing confirmed and completed bookings remain visible outside opening hours and on closed dates', () => {
+  const bookings = [
+    { ...request('early', 'slot-1', '이른 예약'), status: 'CONFIRMED', startAt: '2026-10-19T08:15:00+09:00', endAt: '2026-10-19T09:15:00+09:00' },
+    { ...request('late', 'slot-2', '늦은 예약'), status: 'COMPLETED', startAt: '2026-10-19T19:45:00+09:00', endAt: '2026-10-19T20:15:00+09:00' },
+  ]
+  const hours = openingHours.map((item) => ({ ...item, opensAt: '10:30', closesAt: '14:45' }))
+  const app = mount('Schedule', { storeId: 'store-1', bookings, openingHours: hours, day: '2026-10-19', onUpdated() {} })
+  for (const tree of [app.render(), app.render({ openingHours: hours.map((item) => ({ ...item, closed: true, opensAt: null, closesAt: null })) })]) {
+    const grid = nodes(tree).find((node) => node.props.className === 'owner-timetable')
+    assert.ok(grid)
+    assert.equal(grid.props.style.height, 864)
+    const labels = nodes(grid).filter((node) => node.props.className === 'owner-hour').map(text)
+    assert.equal(labels[0], '08:15')
+    assert.equal(labels.at(-1), '20:15')
+    const cards = nodes(grid).filter((node) => node.props.className === 'owner-booking')
+    assert.deepEqual(cards.map((node) => node.key), ['early', 'late'])
+    for (const card of cards) {
+      assert.ok(card.props.style.top >= 0)
+      assert.ok(card.props.style.top + card.props.style.height <= grid.props.style.height)
+    }
+  }
+  assert.match(text(app.render()), /휴무/)
   app.unmount()
 })
