@@ -7,9 +7,13 @@ function notificationUrl(value, shopId) {
 }
 
 function notificationDetails(data = {}) {
+  const type = data.notificationType || data.type
+  // 내부 전달에서 제거한 잘못된 정책을 즉시확정으로 바꾸지 않는다.
+  const instantBooking = data.instantBooking ?? (type === 'VACANCY_MATCHED' && data.bintime !== true ? 'true' : undefined)
   return Object.fromEntries(Object.entries({
-    notificationId: data.notificationId, notificationType: data.notificationType || data.type,
+    notificationId: data.notificationId, notificationType: type,
     roomId: data.roomId, messageId: data.messageId,
+    instantBooking: instantBooking === 'true' || instantBooking === 'false' ? instantBooking : undefined,
   }).filter(([, value]) => typeof value === 'string' && value.trim() && value.length <= 64 && !/\p{Cc}/u.test(value)))
 }
 
@@ -51,7 +55,9 @@ self.registration.showNotification = (title, options = {}) => {
     const key = tag ? new URL(`/__bintime_push__/${encodeURIComponent(`${details.notificationType === 'CHAT_MESSAGE' ? 'chat' : 'notification'}:${tag}`)}`, self.location.origin).href : undefined
     const cache = key ? await caches.open('bintime-displayed-notifications') : undefined
     if (cache && await cache.match(key)) return
-    await showNotification(title, { ...options, tag, icon: logo, image: '/icons/puzzle-mark-512.png', badge: '/icons/puzzle-mark-badge-96.png' })
+    const policy = details.notificationType === 'VACANCY_MATCHED' && details.instantBooking ? details.instantBooking === 'false' ? '예약 신청 · 사장님 선택' : '즉시확정' : ''
+    const body = policy ? [options.body, policy].filter(Boolean).join(' · ') : options.body
+    await showNotification(title, { ...options, ...(body === undefined ? {} : { body }), tag, icon: logo, image: '/icons/puzzle-mark-512.png', badge: '/icons/puzzle-mark-badge-96.png' })
     if (cache) {
       await cache.put(key, new Response(''))
       // shortcut: 최근 500개 ID만 보관한다. 더 오래 재전송되는 운영 정책이면 보관 범위를 늘린다.

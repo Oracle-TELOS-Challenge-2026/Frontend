@@ -47,6 +47,7 @@ export interface Slot {
   price: number
   originalPrice: number
   version?: number
+  instantBooking?: boolean
 }
 
 export interface Shop {
@@ -72,7 +73,7 @@ export interface Reservation extends Slot {
   shopName: string
   shopImage: string
   duration: number
-  status: 'CONFIRMED' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW'
+  status: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'WITHDRAWN' | 'EXPIRED' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW'
   createdAt: string
   version: number
   allowedActions: string[]

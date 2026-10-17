@@ -30,6 +30,17 @@ test('ordinary inbox notification IDs keep their existing read path', () => {
   assert.equal(notificationTarget('/customer/waitlist?notificationId=..'), null)
 })
 
+test('vacancy click metadata preserves exact FCM policy strings without coercing values', () => {
+  for (const instantBooking of ['true', 'false']) {
+    const path = notificationClickPath('/customer/shops/a?slotId=slot-1', origin, { instantBooking })
+    assert.equal(new URL(path, origin).searchParams.get('instantBooking'), instantBooking)
+    assert.deepEqual(notificationTarget(path), { kind: 'notification', notificationId: null })
+  }
+  for (const instantBooking of [true, false, 'FALSE', '0', '', null, undefined]) {
+    assert.equal(notificationClickPath('/customer/waitlist', origin, { instantBooking }), '/customer/waitlist')
+  }
+})
+
 test('external, credential-bearing and malformed notification URLs never become app destinations', () => {
   for (const path of ['https://other.example/chat?roomId=room-1', '//other.example/chat', 'https://user:pass@bintime.example/chat', '/\\other.example/chat', '/chat\n?roomId=room-1', 'javascript:alert(1)', null]) {
     assert.equal(notificationClickPath(path, origin), null, String(path))

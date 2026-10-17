@@ -3,11 +3,12 @@ import { useSearchParams } from 'react-router-dom'
 import { Icon } from '../../components/Icon'
 import { LoadingIndicator } from '../../components/LoadingIndicator'
 import { OwnerSchedule } from '../../components/owner/Schedule'
+import { ReservationRequests } from '../../components/owner/ReservationRequests'
 import { SlotDialog } from '../../components/owner/SlotDialog'
 import { dateLabel, money, timeLabel, todayInSeoul } from '../../lib/format'
 import { readOwnerTimetable } from '../../lib/owner-api'
 import { readStoreServices } from '../../lib/customer-api'
-import type { OwnerTimetable } from '../../lib/owner-api'
+import type { OwnerReservationDetail, OwnerTimetable } from '../../lib/owner-api'
 import type { RegisteredShop, StoreService } from '../../types'
 
 const dayAt = (day: string, offset: number) => new Date(Date.parse(`${day}T00:00:00Z`) + offset * 86400000).toISOString().slice(0, 10)
@@ -68,6 +69,11 @@ export function OwnerHome({ ownerShop, cache, refreshKey = '' }: { ownerShop: Re
     }
   }, [storeId, selectedDay, key, revision, refreshKey, cache])
 
+  function reservationUpdated(reservation: OwnerReservationDetail) {
+    setRevision((value) => value + 1)
+    setNotice(reservation.status === 'CONFIRMED' ? '선택한 고객의 예약을 확정했어요. 같은 빈자리의 다른 신청은 마감됐어요.' : reservation.status === 'REJECTED' ? '신청을 거절했어요. 다른 신청과 빈자리는 유지돼요.' : reservation.status === 'NO_SHOW' ? '노쇼 처리했어요. 남은 시간은 빈자리 알림에서 확인해 주세요.' : reservation.status === 'CANCELED' ? '예약을 취소했어요. 남은 시간은 빈자리 알림에서 확인해 주세요.' : '시술 완료로 처리했어요.')
+  }
+
   function moveWeek(offset: number) {
     setWeekStart(dayAt(weekStart, offset))
     setSelectedDay(dayAt(selectedDay, offset))
@@ -84,6 +90,7 @@ export function OwnerHome({ ownerShop, cache, refreshKey = '' }: { ownerShop: Re
         <div><p>{selectedDay === today ? '오늘' : '선택한 날'} 전체 예약</p><strong>{current?.data?.summary.total ?? '—'}<small>건</small></strong></div>
         <div><p>남은 확정 예약</p><strong>{current?.data?.summary.remainingConfirmed ?? '—'}<small>건</small></strong></div>
       </div>
+      {storeId && <ReservationRequests key={storeId} storeId={storeId} refreshKey={`${refreshKey}:${revision}`} onUpdated={reservationUpdated} onConflict={() => setRevision((value) => value + 1)} />}
       <div className="owner-date-heading">
         <h2>{new Date(`${selectedDay}T12:00:00+09:00`).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', timeZone: 'Asia/Seoul' })}</h2>
         <div className="owner-date-controls">
@@ -102,9 +109,9 @@ export function OwnerHome({ ownerShop, cache, refreshKey = '' }: { ownerShop: Re
       {!storeId ? <p className="empty-state">매장을 등록하면 예약 일정을 확인할 수 있어요.</p> : !current ? <LoadingIndicator label="예약 일정을 불러오고 있어요" /> : current.data && <>
         <section className="owner-slots" aria-label="예약 가능한 시간">
           <div className="owner-list-heading"><h2>예약 가능한 시간</h2><button className="button small" type="button" onClick={() => { setNotice(''); setRegistering(true) }}>예약 시간 등록</button></div>
-          {current.data.availableSlots.length ? <ul className="owner-slot-list">{current.data.availableSlots.map((slot) => <li key={slot.id}><div><strong>{timeLabel(slot.startAt)} ~ {timeLabel(slot.endAt)}</strong><p>{current.services?.find((service) => service.id === slot.serviceId)?.name ?? '등록된 시술'}</p></div><span>{money(slot.price.payable)}</span></li>)}</ul> : <p className="muted">이 날짜에 예약 가능한 시간이 없어요.<br />시술과 시작 시간을 등록하면 고객이 예약할 수 있어요.</p>}
+          {current.data.availableSlots.length ? <ul className="owner-slot-list">{current.data.availableSlots.map((slot) => <li key={slot.id}><div><strong>{timeLabel(slot.startAt)} ~ {timeLabel(slot.endAt)}</strong><p>{current.services?.find((service) => service.id === slot.serviceId)?.name ?? '등록된 시술'} · {slot.instantBooking === false ? '사장님 선택' : '즉시확정'}</p></div><span>{money(slot.price.payable)}</span></li>)}</ul> : <p className="muted">이 날짜에 예약 가능한 시간이 없어요.<br />시술과 시작 시간을 등록하면 고객이 예약할 수 있어요.</p>}
         </section>
-        <OwnerSchedule key={key} storeId={storeId} bookings={current.data.reservations} day={selectedDay} onUpdated={(reservation) => { setRevision((value) => value + 1); setNotice(reservation.status === 'NO_SHOW' ? '노쇼 처리했어요. 남은 시간은 빈자리 알림에서 확인해 주세요.' : '시술 완료로 처리했어요.') }} />
+        <OwnerSchedule key={key} storeId={storeId} bookings={current.data.reservations} day={selectedDay} onUpdated={reservationUpdated} onConflict={() => setRevision((value) => value + 1)} />
       </>}
       {registering && ownerShop && current?.services && <SlotDialog shop={ownerShop} services={current.services} day={selectedDay} onClose={(recheck) => { setRegistering(false); if (recheck) setRevision((value) => value + 1) }} onCreated={(slot) => {
         const day = todayInSeoul(new Date(slot.startAt))

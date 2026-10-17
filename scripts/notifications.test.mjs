@@ -11,7 +11,7 @@ const success = (data) => Response.json({ resultType: 'SUCCESS', success: { data
 
 test('notification list uses cursor pagination and validates unread count and page boundaries', async (t) => {
   const responses = [
-    success({ items: [notification()], unreadCount: 3, page: { hasNext: true, nextCursor: 'cursor-2' } }),
+    success({ items: [notification({ target: { instantBooking: false } })], unreadCount: 3, page: { hasNext: true, nextCursor: 'cursor-2' } }),
     success({ items: [], unreadCount: 3, page: { hasNext: false, nextCursor: null } }),
     success({ items: [], unreadCount: -1, page: { hasNext: false } }),
     success({ items: [], unreadCount: 1, page: { hasNext: true, nextCursor: 'loop' } }),
@@ -19,6 +19,7 @@ test('notification list uses cursor pagination and validates unread count and pa
   const fetch = t.mock.method(globalThis, 'fetch', async () => responses.shift())
   const first = await fetchNotifications()
   assert.equal(first.items[0].id, 'noti-1')
+  assert.equal(first.items[0].instantBooking, false)
   assert.equal(first.nextCursor, 'cursor-2')
   assert.equal(first.unreadCount, 3)
   const last = await fetchNotifications(first.nextCursor)
@@ -47,6 +48,20 @@ test('notification destinations remain in the app and invalid response data is r
   assert.equal(notificationPath('/customer/shops/a?slotId=s#time'), '/customer/shops/a?slotId=s#time')
   for (const path of ['https://evil.example', '//evil.example', '/\\evil.example', 'javascript:alert(1)', '/bad\npath', null]) assert.equal(notificationPath(path), '/customer/waitlist')
   for (const value of [null, notification({ id: '' }), notification({ type: null }), notification({ createdAt: 'bad' }), notification({ readAt: 'bad' }), notification({ availability: 'OTHER' })]) assert.throws(() => parseNotification(value))
+})
+
+test('vacancy notifications preserve the published policy and validate optional boolean targets', () => {
+  for (const target of [undefined, null, {}, { instantBooking: null }, { instantBooking: true }]) {
+    assert.equal(parseNotification(notification({ target })).instantBooking, true)
+  }
+  const pending = parseNotification(notification({ target: { instantBooking: false } }))
+  assert.equal(pending.instantBooking, false)
+  assert.equal(notificationActionLabel(pending), '예약 신청')
+  assert.equal(notificationActionLabel({ ...pending, availability: 'UNAVAILABLE' }), null)
+  for (const instantBooking of ['false', 'true', 0, 1, {}, []]) {
+    assert.throws(() => parseNotification(notification({ target: { instantBooking } })), /확정 방식/)
+  }
+  for (const target of [false, '', []]) assert.throws(() => parseNotification(notification({ target })), /응답 형식/)
 })
 
 test('chat and reservation notifications keep their destinations and remain actionable without slot availability', () => {
@@ -80,7 +95,7 @@ test('duplicate and replayed notifications preserve read state and chronological
 })
 
 test('SSE handles fragmented UTF-8, CRLF, heartbeats, multiline JSON, and session expiry', async (t) => {
-  const content = ': heartbeat\r\n\r\nretry: 3000\r\n\r\nid: evt-1\r\nevent: notification.created\r\ndata: {"notification":\r\ndata: ' + JSON.stringify(notification()) + '}\r\n\r\nid: evt-2\nevent: notification.read\ndata: {"notificationId":"noti-1","readAt":"2026-10-17T12:01:00+09:00"}\n\nevent: session.expired\ndata: {"reason":"SESSION_EXPIRED"}\n\n'
+  const content = ': heartbeat\r\n\r\nretry: 3000\r\n\r\nid: evt-1\r\nevent: notification.created\r\ndata: {"notification":\r\ndata: ' + JSON.stringify(notification({ target: { instantBooking: false } })) + '}\r\n\r\nid: evt-2\nevent: notification.read\ndata: {"notificationId":"noti-1","readAt":"2026-10-17T12:01:00+09:00"}\n\nevent: session.expired\ndata: {"reason":"SESSION_EXPIRED"}\n\n'
   const bytes = new TextEncoder().encode(content)
   const body = new ReadableStream({ start(controller) { for (let index = 0; index < bytes.length; index += 7) controller.enqueue(bytes.slice(index, index + 7)); controller.close() } })
   const fetch = t.mock.method(globalThis, 'fetch', async () => new Response(body, { headers: { 'Content-Type': 'text/event-stream' } }))
@@ -89,6 +104,7 @@ test('SSE handles fragmented UTF-8, CRLF, heartbeats, multiline JSON, and sessio
   await readNotificationStream({ signal: new AbortController().signal, afterEventId: 'evt/old', onOpen: () => { opened = true }, onEvent: (event) => { assert.equal(opened, true); events.push(event) } })
   assert.deepEqual(events.map((event) => event.type), ['notification.created', 'notification.read', 'session.expired'])
   assert.equal(events[0].notification.title, '빈자리 알림')
+  assert.equal(events[0].notification.instantBooking, false)
   assert.equal(events[1].notificationId, 'noti-1')
   const [url, options] = fetch.mock.calls[0].arguments
   assert.equal(url, '/api/v1/notifications/stream?afterEventId=evt%2Fold')

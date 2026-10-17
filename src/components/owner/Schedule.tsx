@@ -4,9 +4,9 @@ import { OwnerReservationDialog } from './ReservationDialog'
 import { timeLabel, todayInSeoul } from '../../lib/format'
 import type { OwnerReservation, OwnerReservationDetail } from '../../lib/owner-api'
 
-const statusLabel = { CONFIRMED: '예약 확정', COMPLETED: '시술 완료', CANCELED: '예약 취소', NO_SHOW: '노쇼' }
+const statusLabel = { PENDING: '사장님 확인 대기', REJECTED: '신청 마감', WITHDRAWN: '신청 철회', EXPIRED: '신청 만료', CONFIRMED: '예약 확정', COMPLETED: '시술 완료', CANCELED: '예약 취소', NO_SHOW: '노쇼' }
 
-export function OwnerSchedule({ storeId, bookings, day, onUpdated }: { storeId: string; bookings: OwnerReservation[]; day: string; onUpdated: (reservation: OwnerReservationDetail) => void }) {
+export function OwnerSchedule({ storeId, bookings, day, onUpdated, onConflict }: { storeId: string; bookings: OwnerReservation[]; day: string; onUpdated: (reservation: OwnerReservationDetail) => void; onConflict?: () => void }) {
   const [selectedBooking, setSelectedBooking] = useState<OwnerReservation | null>(null)
   const sorted = [...bookings].sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt))
   const scheduled = sorted.filter((booking) => booking.status === 'CONFIRMED' || booking.status === 'COMPLETED')
@@ -25,6 +25,6 @@ export function OwnerSchedule({ storeId, bookings, day, onUpdated }: { storeId: 
         {scheduled.length === 0 && <div className="owner-no-bookings"><Icon name="calendar" /><strong>여유로운 하루예요</strong><p>아직 확정된 예약이 없어요.<br />예약이 들어오면 여기에 보여드릴게요.</p></div>}
       </div>
       {canceled.length > 0 && <div className="owner-alert-list"><h3>취소 · 노쇼 내역</h3>{canceled.map((booking) => <button key={booking.id} type="button" className="button secondary" onClick={() => setSelectedBooking(booking)}>{timeLabel(booking.startAt)} · {booking.customer.displayName} · {statusLabel[booking.status]}</button>)}</div>}
-      {selectedBooking && <OwnerReservationDialog key={selectedBooking.id} storeId={storeId} reservationId={selectedBooking.id} onClose={() => setSelectedBooking(null)} onUpdated={(reservation) => { setSelectedBooking(null); onUpdated(reservation) }} />}
+      {selectedBooking && <OwnerReservationDialog key={selectedBooking.id} storeId={storeId} reservationId={selectedBooking.id} onClose={() => setSelectedBooking(null)} onConflict={onConflict} onUpdated={(reservation) => { setSelectedBooking(null); onUpdated(reservation) }} />}
   </>
 }

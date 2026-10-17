@@ -3,9 +3,10 @@ import { readItems } from './customer-api.ts'
 import { discountPrice, validWaitPreference } from './booking.ts'
 import { validOpeningHours, WEEK_DAYS } from './account.ts'
 import { CATEGORY_LABELS } from '../data/categories.ts'
-import type { DiscountMode, RegisteredShop, StoreService } from '../types.ts'
+import type { DiscountMode, RegisteredShop, Reservation, StoreService } from '../types.ts'
 
 export interface OwnerSlot {
+  instantBooking?: boolean
   id: string
   storeId: string
   serviceId: string
@@ -17,7 +18,7 @@ export interface OwnerSlot {
 export interface OwnerReservation {
   id: string
   resourceId: string
-  status: 'CONFIRMED' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW'
+  status: Reservation['status']
   startAt: string
   endAt: string
   customer: { id: string; displayName: string }
@@ -30,6 +31,13 @@ export interface OwnerReservationDetail extends OwnerReservation {
   version: number
   allowedActions: string[]
 }
+
+export interface OwnerReservationRequest extends OwnerReservationDetail {
+  slotId: string
+  createdAt: string
+}
+
+export type OwnerReservationAction = 'CONFIRMED' | 'REJECTED' | 'COMPLETED' | 'NO_SHOW' | 'CANCELED'
 
 export interface OwnerStoreSettings {
   id: string
@@ -47,6 +55,7 @@ export interface OwnerTimetable {
 }
 
 export interface Vacancy {
+  instantBooking?: boolean
   id: string
   storeId: string
   resourceId: string
@@ -71,7 +80,8 @@ const invalidResponse = () => new BackendApiError(200, 'INVALID_RESPONSE', '사�
 
 function parseOwnerSlot(value: unknown): OwnerSlot {
   if (!isObject(value) || !['id', 'storeId', 'serviceId'].every((key) => typeof value[key] === 'string' && value[key] !== '') || !validTime(value.startAt) || !validTime(value.endAt) || Date.parse(value.endAt) <= Date.parse(value.startAt) || !isObject(value.price) || !nonnegativeInteger(value.price.original) || !nonnegativeInteger(value.price.payable)) throw invalidResponse()
-  return value as unknown as OwnerSlot
+  if (value.instantBooking != null && typeof value.instantBooking !== 'boolean') throw invalidResponse()
+  return { ...value, instantBooking: value.instantBooking ?? true } as unknown as OwnerSlot
 }
 
 export function ownerSlotInput(shop: RegisteredShop, service: StoreService, date: string, time: string, now = Date.now()) {
@@ -93,13 +103,14 @@ export async function createOwnerSlot(storeId: string, input: ReturnType<typeof 
 }
 
 function parseReservation(value: unknown): OwnerReservation {
-  if (!isObject(value) || typeof value.id !== 'string' || typeof value.resourceId !== 'string' || !['CONFIRMED', 'COMPLETED', 'CANCELED', 'NO_SHOW'].includes(String(value.status)) || !validTime(value.startAt) || !validTime(value.endAt) || Date.parse(value.endAt) <= Date.parse(value.startAt) || !isObject(value.customer) || typeof value.customer.id !== 'string' || typeof value.customer.displayName !== 'string' || !isObject(value.service) || typeof value.service.id !== 'string' || typeof value.service.name !== 'string' || !nonnegativeInteger(value.service.durationMinutes) || value.service.durationMinutes === 0 || !isObject(value.price) || !nonnegativeInteger(value.price.original) || !nonnegativeInteger(value.price.payable)) throw invalidResponse()
+  if (!isObject(value) || typeof value.id !== 'string' || typeof value.resourceId !== 'string' || !['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELED', 'NO_SHOW', 'REJECTED', 'WITHDRAWN', 'EXPIRED'].includes(String(value.status)) || !validTime(value.startAt) || !validTime(value.endAt) || Date.parse(value.endAt) <= Date.parse(value.startAt) || !isObject(value.customer) || typeof value.customer.id !== 'string' || typeof value.customer.displayName !== 'string' || !isObject(value.service) || typeof value.service.id !== 'string' || typeof value.service.name !== 'string' || !nonnegativeInteger(value.service.durationMinutes) || value.service.durationMinutes === 0 || !isObject(value.price) || !nonnegativeInteger(value.price.original) || !nonnegativeInteger(value.price.payable)) throw invalidResponse()
   return value as unknown as OwnerReservation
 }
 
 export function parseVacancy(value: unknown): Vacancy {
   if (!isObject(value) || !['id', 'storeId', 'resourceId', 'originalServiceId'].every((key) => typeof value[key] === 'string' && value[key] !== '') || !['CANCELLATION', 'NO_SHOW'].includes(String(value.reason)) || !['DRAFT', 'PUBLISHED', 'FILLED', 'WITHDRAWN', 'EXPIRED'].includes(String(value.status)) || !validTime(value.availableFrom) || !validTime(value.availableUntil) || Date.parse(value.availableUntil) <= Date.parse(value.availableFrom) || !validTime(value.occurredAt) || !(value.publishedAt === null || validTime(value.publishedAt)) || !nonnegativeInteger(value.originalPrice) || !nonnegativeInteger(value.version) || value.version === 0) throw invalidResponse()
-  return value as unknown as Vacancy
+  if (value.instantBooking != null && typeof value.instantBooking !== 'boolean') throw invalidResponse()
+  return { ...value, instantBooking: value.instantBooking ?? true } as unknown as Vacancy
 }
 
 export async function readOwnerTimetable(storeId: string, date: string, signal?: AbortSignal): Promise<OwnerTimetable> {
@@ -114,19 +125,20 @@ export async function readOwnerVacancies(storeId: string, signal?: AbortSignal):
   return (await readItems(`/api/v1/owner/stores/${apiId(storeId)}/vacancies?limit=100`, signal)).map(parseVacancy)
 }
 
-export function vacancyPublishInput(vacancy: Vacancy, service: StoreService, startAt: string, mode: DiscountMode, value: number, now = Date.now()) {
+export function vacancyPublishInput(vacancy: Vacancy, service: StoreService, startAt: string, mode: DiscountMode, value: number, instantBooking = true, now = Date.now()) {
   const start = Date.parse(startAt)
-  if (vacancy.status !== 'DRAFT') throw new Error('발행할 수 있는 빈자리가 아니에요. 다시 조회해 주세요.')
+  if (typeof instantBooking !== 'boolean') throw new Error('예약 확정 방식을 선택해 주세요.')
+  if (vacancy.status !== 'DRAFT' && vacancy.status !== 'WITHDRAWN') throw new Error('발행할 수 있는 빈자리가 아니에요. 다시 조회해 주세요.')
   if (!service.active || !Number.isSafeInteger(service.durationMinutes) || service.durationMinutes <= 0 || !Number.isSafeInteger(service.basePrice) || service.basePrice <= 0) throw new Error('현재 제공 중인 시술을 선택해 주세요.')
   if (!Number.isFinite(start) || start < now || start < Date.parse(vacancy.availableFrom) || start + service.durationMinutes * 60000 > Date.parse(vacancy.availableUntil)) throw new Error('시술이 빈 시간 안에 끝나도록 시작 시간을 선택해 주세요.')
   if (discountPrice(service.basePrice, mode, value) === null) throw new Error(mode === 'percent' ? '할인율은 1~99 사이의 정수로 입력해 주세요.' : '할인 가격은 정가보다 낮은 양의 정수로 입력해 주세요.')
-  return { serviceId: service.id, startAt, discount: { type: mode === 'percent' ? 'PERCENT' : 'FIXED_PRICE', value }, expectedVersion: vacancy.version }
+  return { serviceId: service.id, startAt, discount: { type: mode === 'percent' ? 'PERCENT' : 'FIXED_PRICE', value }, expectedVersion: vacancy.version, instantBooking }
 }
 
 export async function publishVacancy(vacancy: Vacancy, input: ReturnType<typeof vacancyPublishInput>, idempotencyKey: string): Promise<Vacancy> {
   const { data } = await mutateBackendApi(`/api/v1/owner/stores/${apiId(vacancy.storeId)}/vacancies/${apiId(vacancy.id)}/publish`, { body: input, idempotencyKey })
   const published = parseVacancy(data?.vacancy)
-  if (published.id !== vacancy.id || published.storeId !== vacancy.storeId || published.status !== 'PUBLISHED') throw invalidResponse()
+  if (published.id !== vacancy.id || published.storeId !== vacancy.storeId || published.status !== 'PUBLISHED' || published.instantBooking !== input.instantBooking) throw invalidResponse()
   return published
 }
 
@@ -141,10 +153,24 @@ export async function readOwnerReservation(storeId: string, reservationId: strin
   return parseReservationDetail(data, storeId, reservationId)
 }
 
-export async function updateOwnerReservationStatus(storeId: string, reservation: OwnerReservationDetail, status: 'COMPLETED' | 'NO_SHOW', idempotencyKey: string): Promise<OwnerReservationDetail> {
-  if (reservation.store.id !== storeId || reservation.status !== 'CONFIRMED' || !['COMPLETED', 'NO_SHOW'].includes(status) || !reservation.allowedActions.includes(status === 'COMPLETED' ? 'COMPLETE' : 'NO_SHOW')) throw new Error('현재 처리할 수 없는 예약이에요. 최신 예약 정보를 다시 조회해 주세요.')
-  const { data } = await mutateBackendApi(`/api/v1/owner/stores/${apiId(storeId)}/reservations/${apiId(reservation.id)}/status`, { body: { status, expectedVersion: reservation.version }, idempotencyKey })
-  const updated = parseReservationDetail(data?.reservation, storeId, reservation.id)
+export async function readOwnerReservationRequests(storeId: string, signal?: AbortSignal): Promise<OwnerReservationRequest[]> {
+  const items = await readItems(`/api/v1/owner/stores/${apiId(storeId)}/reservation-requests?limit=20`, signal)
+  return items.map((value) => {
+    if (!isObject(value) || typeof value.id !== 'string' || !value.id || typeof value.slotId !== 'string' || !value.slotId || !validTime(value.createdAt)) throw invalidResponse()
+    const reservation = parseReservationDetail(value, storeId, value.id)
+    if (reservation.status !== 'PENDING') throw invalidResponse()
+    return { ...reservation, slotId: value.slotId, createdAt: value.createdAt }
+  })
+}
+
+export async function updateOwnerReservationStatus(storeId: string, reservation: OwnerReservationDetail, status: OwnerReservationAction, idempotencyKey: string): Promise<OwnerReservationDetail> {
+  const action = { CONFIRMED: 'APPROVE', REJECTED: 'REJECT', COMPLETED: 'COMPLETE', NO_SHOW: 'NO_SHOW', CANCELED: 'CANCEL' }[status]
+  const choosing = status === 'CONFIRMED' || status === 'REJECTED'
+  if (reservation.store.id !== storeId || reservation.status !== (choosing ? 'PENDING' : 'CONFIRMED') || !action || !reservation.allowedActions.includes(action)) throw new Error('현재 처리할 수 없는 예약이에요. 최신 예약 정보를 다시 조회해 주세요.')
+  const cancel = status === 'CANCELED'
+  const { data } = await mutateBackendApi(cancel ? `/api/v1/reservations/${apiId(reservation.id)}/cancel` : `/api/v1/owner/stores/${apiId(storeId)}/reservations/${apiId(reservation.id)}/status`, { body: cancel ? { reasonCode: 'STORE_REQUEST', expectedVersion: reservation.version } : { status, expectedVersion: reservation.version }, idempotencyKey })
+  // 본인 예약의 취소 응답에는 고객 정보가 빠질 수 있어 사장 상세로 결과를 다시 확인한다.
+  const updated = cancel ? await readOwnerReservation(storeId, reservation.id) : parseReservationDetail(data?.reservation, storeId, reservation.id)
   if (updated.status !== status) throw invalidResponse()
   return updated
 }

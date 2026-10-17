@@ -15,6 +15,7 @@ export function PublishDialog({ vacancy, services, onPublished, onClose }: { vac
   const [serviceId, setServiceId] = useState(vacancy.originalServiceId)
   const [mode, setMode] = useState<DiscountMode>('percent')
   const [value, setValue] = useState('20')
+  const [instantBooking, setInstantBooking] = useState(true)
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
   const request = useRef<{ signature: string; input: ReturnType<typeof vacancyPublishInput>; key: string } | null>(null)
@@ -28,8 +29,8 @@ export function PublishDialog({ vacancy, services, onPublished, onClose }: { vac
     setError('')
     try {
       if (!service) throw new Error('현재 제공 중인 시술을 선택해 주세요.')
-      const signature = JSON.stringify({ serviceId, start, mode, value })
-      if (request.current?.signature !== signature) request.current = { signature, input: vacancyPublishInput(vacancy, service, `${start}:00+09:00`, mode, Number(value)), key: crypto.randomUUID() }
+      const signature = JSON.stringify({ serviceId, start, mode, value, instantBooking })
+      if (request.current?.signature !== signature) request.current = { signature, input: vacancyPublishInput(vacancy, service, `${start}:00+09:00`, mode, Number(value), instantBooking), key: crypto.randomUUID() }
       setPending(true)
       onPublished(await publishVacancy(vacancy, request.current.input, request.current.key))
     } catch (failure) {
@@ -46,6 +47,10 @@ export function PublishDialog({ vacancy, services, onPublished, onClose }: { vac
         <select id="owner-service" value={serviceId} onChange={(event) => { setServiceId(event.target.value); setError('') }} required disabled={pending}><option value="">시술을 선택해 주세요</option>{activeServices.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.durationMinutes}분 · {money(item.basePrice)}</option>)}</select>
       </label>
       <label className="account-field" htmlFor="owner-start">시작 시간 (한국 시간)<input id="owner-start" type="datetime-local" value={start} min={seoulInput(Date.parse(vacancy.availableFrom))} max={seoulInput(Date.parse(vacancy.availableUntil))} onChange={(event) => { setStart(event.target.value); setError('') }} required disabled={pending} /></label>
+      <fieldset disabled={pending}><legend className="owner-form-label">예약 확정 방식</legend><div className="owner-discount-toggle">
+        <label><input type="radio" name="booking-policy" checked={instantBooking} onChange={() => setInstantBooking(true)} /><span>즉시확정</span></label>
+        <label><input type="radio" name="booking-policy" checked={!instantBooking} onChange={() => setInstantBooking(false)} /><span>신청 확인 후 선택</span></label>
+      </div><p className="muted">{instantBooking ? '고객이 신청하면 바로 예약이 확정돼요.' : '여러 고객의 신청을 받고, 신청순 목록에서 한 명을 선택해요. 선택 전에는 시간이 예약되지 않아요.'}</p></fieldset>
       <fieldset disabled={pending}><legend className="owner-form-label">할인 방법</legend><div className="owner-discount-toggle">
         <label><input type="radio" name="discount-mode" checked={mode === 'percent'} onChange={() => { setMode('percent'); setValue('20'); setError('') }} /><span>할인율로 입력</span></label>
         <label><input type="radio" name="discount-mode" checked={mode === 'amount'} onChange={() => { setMode('amount'); setValue(service ? String(Math.round(service.basePrice * .8)) : ''); setError('') }} /><span>할인 가격으로 입력</span></label>

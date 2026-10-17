@@ -29,7 +29,7 @@ export function OwnerAlerts({ ownerShop, notify, cache, refreshKey = '' }: { own
   const current = result?.key === key ? result : cache.get(key)
   const alerts = current?.vacancies ?? []
   const services = current?.services ?? []
-  const available = alerts.filter((item) => item.status === 'DRAFT' && Date.parse(item.availableUntil) > (current?.receivedAt ?? 0)).length
+  const available = alerts.filter((item) => (item.status === 'DRAFT' || item.status === 'WITHDRAWN') && Date.parse(item.availableUntil) > (current?.receivedAt ?? 0)).length
 
   useEffect(() => {
     if (!storeId) return
@@ -116,9 +116,9 @@ export function OwnerAlerts({ ownerShop, notify, cache, refreshKey = '' }: { own
         {alerts.map((alert) => <article className="owner-alert-card" key={alert.id}>
           <div className="owner-alert-top"><span className={`badge ${alert.status === 'DRAFT' ? 'coral' : ''}`}>{alert.reason === 'NO_SHOW' ? '노쇼 접수' : '예약 취소'}</span><time dateTime={alert.occurredAt}>{dateLabel(alert.occurredAt)} {timeLabel(alert.occurredAt)} 접수</time></div>
           <div className="owner-alert-date"><Icon name="calendar" /><span>{dateLabel(alert.availableFrom)} · {timeLabel(alert.availableFrom)} – {timeLabel(alert.availableUntil)}</span></div>
-          <h3>{services.find((service) => service.id === alert.originalServiceId)?.name ?? '취소된 시술'}</h3><p>{alert.status === 'PUBLISHED' ? '빈자리가 공개되었어요.' : alert.status === 'DRAFT' ? '가능한 시술과 할인 가격을 등록해 주세요.' : statusLabel[alert.status]}</p>
-          <div className="owner-alert-bottom"><div><span>기존 예약 정가 </span><strong>{money(alert.originalPrice)}</strong></div>{alert.status === 'DRAFT' && Date.parse(alert.availableUntil) > (current?.receivedAt ?? 0) ? <button className="button small" type="button" onClick={() => setSelected(alert)}><Icon name="bell" />빈자리 알리기</button> : <span className="owner-published">{alert.status === 'DRAFT' ? '시간 만료' : statusLabel[alert.status]}</span>}</div>
-          {alert.status === 'PUBLISHED' && <button className="account-text-button" type="button" onClick={() => { requestKey.current = crypto.randomUUID(); setWithdrawError(''); setWithdrawing(alert) }}>빈자리 발행 철회</button>}
+          <h3>{services.find((service) => service.id === alert.originalServiceId)?.name ?? '취소된 시술'}</h3><p>{alert.status === 'PUBLISHED' ? `빈자리가 공개되었어요. · ${alert.instantBooking === false ? '사장님 선택' : '즉시확정'}` : alert.status === 'DRAFT' || alert.status === 'WITHDRAWN' ? '시술·할인 가격·확정 방식을 정해 발행해 주세요.' : statusLabel[alert.status]}</p>
+          <div className="owner-alert-bottom"><div><span>기존 예약 정가 </span><strong>{money(alert.originalPrice)}</strong></div>{(alert.status === 'DRAFT' || alert.status === 'WITHDRAWN') && Date.parse(alert.availableUntil) > (current?.receivedAt ?? 0) ? <button className="button small" type="button" onClick={() => setSelected(alert)}><Icon name="bell" />{alert.status === 'WITHDRAWN' ? '다시 발행하기' : '빈자리 알리기'}</button> : <span className="owner-published">{alert.status === 'DRAFT' || alert.status === 'WITHDRAWN' && Date.parse(alert.availableUntil) <= (current?.receivedAt ?? 0) ? '시간 만료' : statusLabel[alert.status]}</span>}</div>
+          {alert.status === 'PUBLISHED' && <button className="account-text-button" type="button" onClick={() => { requestKey.current = crypto.randomUUID(); setWithdrawError(''); setWithdrawing(alert) }}>철회 후 조건·확정 방식 변경</button>}
         </article>)}
         {alerts.length === 0 && <div className="empty-state"><Icon name="check" /><h2>취소된 예약이 없어요</h2><p>취소나 노쇼가 생기면 여기에 모아드릴게요.</p></div>}
       </div>
@@ -126,7 +126,7 @@ export function OwnerAlerts({ ownerShop, notify, cache, refreshKey = '' }: { own
     {selected && selected.storeId === storeId && <PublishDialog vacancy={selected} services={services} onPublished={published} onClose={() => { setSelected(null); setRevision((value) => value + 1) }} />}
     {withdrawing && withdrawing.storeId === storeId && <Modal className="owner-dialog" title="빈자리 발행을 철회할까요?" onClose={closeWithdraw}>
       <p className="owner-dialog-date">{dateLabel(withdrawing.availableFrom)} · {timeLabel(withdrawing.availableFrom)} – {timeLabel(withdrawing.availableUntil)}</p>
-      <p>철회하면 고객이 이 빈자리를 새로 예약할 수 없어요. 이미 예약된 빈자리는 철회할 수 없어요.</p>
+      <p>철회하면 고객이 이 빈자리를 새로 예약할 수 없어요. 대기 중인 신청은 모두 마감돼요. 이미 예약된 빈자리는 철회할 수 없어요.</p>
       {withdrawError && <p className="owner-form-error" role="alert">{withdrawError}</p>}
       <div className="account-form-actions"><button className="button secondary" disabled={pending} onClick={closeWithdraw}>돌아가기</button><button className="button" disabled={pending} onClick={() => void withdraw()}>{pending ? '철회 중…' : '발행 철회'}</button></div>
     </Modal>}

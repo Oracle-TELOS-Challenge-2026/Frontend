@@ -59,6 +59,7 @@ function App() {
   const notifications = useNotifications(user?.id, notify)
   const ownerCache = useMemo(() => ({ userId: user?.id, timetable: new Map() as OwnerHomeCache, vacancies: new Map() as OwnerAlertsCache }), [user?.id])
   const customerCache = useMemo(() => ({ userId: user?.id, reservations: new Map() as ReservationsCache, waitlists: new Map() as WaitlistCache }), [user?.id])
+  const invalidateCustomerBookings = () => { customerCache.reservations.clear(); customerCache.waitlists.clear() }
   const reservationRefreshKey = notifications.items.find((item) => item.type.startsWith('RESERVATION_'))?.id ?? ''
   const { refresh: refreshNotifications } = notifications
   const onPush = useCallback(() => { void refreshNotifications() }, [refreshNotifications])
@@ -147,13 +148,13 @@ function App() {
         <Route path="/owner/register" element={account.role === 'owner' && !account.shop?.serviceId ? <Registration shop={account.shop} error={error} onCancel={() => enterRole('customer')} onRegister={async (input) => { if (!await registerShop(input)) return false; navigate('/owner', { replace: true }); return true }} /> : <Navigate to={startPath} replace />} />
         <Route element={<RoleGate role="customer" account={account} />}>
           <Route path="/customer" element={<CustomerHome />} />
-          <Route path="/customer/waitlist" element={<WaitlistPage key={`${user.id}:${location.key}`} cache={customerCache.waitlists} savedLocation={savedLocation} revision={notificationRevision} />} />
-          <Route path="/customer/waitlist/:id" element={<WaitlistPage key={`${user.id}:${location.key}`} cache={customerCache.waitlists} savedLocation={savedLocation} revision={notificationRevision} />} />
+          <Route path="/customer/waitlist" element={<WaitlistPage key={`${user.id}:${location.key}`} cache={customerCache.waitlists} savedLocation={savedLocation} revision={notificationRevision} onBookingChanged={invalidateCustomerBookings} />} />
+          <Route path="/customer/waitlist/:id" element={<WaitlistPage key={`${user.id}:${location.key}`} cache={customerCache.waitlists} savedLocation={savedLocation} revision={notificationRevision} onBookingChanged={invalidateCustomerBookings} />} />
           <Route path="/customer/notifications" element={<NotificationsPage notifications={notifications} onOpen={openNotificationPath} />} />
           <Route path="/customer/chats" element={<CustomerChats chat={chat} userId={user.id} />} />
-          <Route path="/customer/reservations/:id" element={<ReservationsPage key={`${user.id}:${location.key}`} cache={customerCache.reservations} refreshKey={reservationRefreshKey} />} />
-          <Route path="/customer/reservations" element={<ReservationsPage key={`${user.id}:${location.key}`} cache={customerCache.reservations} refreshKey={reservationRefreshKey} />} />
-          <Route path="/customer/shops/:id" element={<ShopDetail key={location.pathname + location.search} />} />
+          <Route path="/customer/reservations/:id" element={<ReservationsPage key={`${user.id}:${location.key}`} cache={customerCache.reservations} refreshKey={reservationRefreshKey} onBookingChanged={invalidateCustomerBookings} />} />
+          <Route path="/customer/reservations" element={<ReservationsPage key={`${user.id}:${location.key}`} cache={customerCache.reservations} refreshKey={reservationRefreshKey} onBookingChanged={invalidateCustomerBookings} />} />
+          <Route path="/customer/shops/:id" element={<ShopDetail key={location.pathname + location.search} onBookingChanged={invalidateCustomerBookings} />} />
           <Route path="/customer/chat/:id" element={<ChatPage key={location.pathname} chat={chat} role="customer" userId={user.id} onRefreshSession={refreshUser} />} />
           <Route path="/customer/profile" element={<ProfilePage role="customer" shop={account.shop} preferences={account.preferences} push={push} user={user} onChanged={refreshUser} onLogout={signOut} />} />
           <Route path="/customer/profile/preferences" element={<PreferencesPage value={account.preferences} onSave={savePreferences} error={error} />} />

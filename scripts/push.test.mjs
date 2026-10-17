@@ -154,6 +154,34 @@ test('foreground pushes allow same-origin links and reject unsafe destinations',
   }
 })
 
+test('vacancy pushes show the published policy for foreground, background, and SDK notifications', async () => {
+  for (const [instantBooking, expected, policy] of [
+    ['false', 'false', '예약 신청 · 사장님 선택'], ['true', 'true', '즉시확정'],
+    [undefined, 'true', '즉시확정'], [null, 'true', '즉시확정'],
+    [false, undefined, ''], ['FALSE', undefined, ''],
+  ]) {
+    const data = { type: 'VACANCY_MATCHED', title: '빈자리', body: '빈자리를 확인해 주세요.', url: '/customer/waitlist', instantBooking }
+    for (const delivery of ['foreground', 'background', 'sdk']) {
+      const worker = loadWorker()
+      if (delivery === 'foreground') await showForegroundPush(worker.registration, { data })
+      else if (delivery === 'background') await worker.receive({ data })
+      else await worker.registration.showNotification(data.title, { body: data.body, data: { FCM_MSG: { data } } })
+      const notice = worker.notifications[0]
+      assert.equal(notice.body, [data.body, policy].filter(Boolean).join(' · '))
+      await worker.click(notice.data)
+      assert.equal(new URL(worker.opened[0]).searchParams.get('instantBooking'), expected ?? null)
+    }
+  }
+})
+
+test('vacancy push policy survives click messages sent to an existing tab', async () => {
+  const messages = []
+  const worker = loadWorker([{ url: origin, postMessage: (message) => messages.push({ ...message }), focus: () => {} }])
+  await worker.receive({ data: { type: 'VACANCY_MATCHED', title: '빈자리', instantBooking: 'false', url: '/customer/waitlist' } })
+  await worker.click(worker.notifications[0].data)
+  assert.equal(messages[0].instantBooking, 'false')
+})
+
 test('foreground pushes report missing workers, display failures, and response timeouts', async (t) => {
   const payload = { notification: { title: '알림' } }
   await assert.rejects(showForegroundPush({}, payload), /활성화/)

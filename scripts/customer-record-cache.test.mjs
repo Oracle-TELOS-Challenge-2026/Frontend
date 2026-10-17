@@ -41,7 +41,7 @@ function button(tree, name) {
 const cards = (tree) => elements(tree).filter((node) => node.type === 'article').length
 const loading = (tree) => elements(tree).some((node) => node.type === 'LoadingIndicator')
 
-function mount({ page, id, cache = new Map(), read = async (_kind, scope) => select(page, records(page), scope) } = {}) {
+function mount({ page, id, cache = new Map(), mutate = async () => {}, read = async (_kind, scope) => select(page, records(page), scope) } = {}) {
   const slots = [], effects = [], calls = [], mutations = []
   let cursor = 0
   let props = { cache, revision: 0, refreshKey: '' }
@@ -77,7 +77,7 @@ function mount({ page, id, cache = new Map(), read = async (_kind, scope) => sel
         readReservations: (scope, signal) => invoke('list', scope, signal),
         readReservation: (id, signal) => invoke('detail', id, signal),
         cancelWaitlist: async (...args) => { mutations.push(args) },
-        cancelReservation: async (...args) => { mutations.push(args) },
+        cancelReservation: async (...args) => { mutations.push(args); return mutate(...args) },
       }
       if (name.startsWith('../../components/')) return new Proxy({}, { get: (_, name) => name })
       throw new Error(`Unexpected import: ${name}`)
@@ -112,6 +112,56 @@ test('initial record requests show a loader, while reloads keep the loaded recor
     assert.equal(loading(app.render()), false, page)
     app.unmount()
   }
+})
+
+test('pending applications stay upcoming without counting as confirmed and expose withdrawal instead of cancellation', async () => {
+  let item = { ...reservation, status: 'PENDING', version: 3 }
+  const app = mount({ page: 'Reservations', id: item.id, read: async () => item, mutate: async () => { item = { ...item, status: 'WITHDRAWN', allowedActions: [] } } })
+  await tick()
+  const before = text(app.render())
+  assert.match(before, /사장님 확인 대기/)
+  assert.match(before, /예약 확정 0건/)
+  assert.match(before, /다가오는 예약·신청/)
+  button(app.render(), '신청 철회').props.onClick()
+  assert.match(text(app.render()), /빈자리 알림 대기는 유지돼요/)
+  button(app.render(), '신청 철회하기').props.onClick()
+  await tick(); app.render(); await tick()
+  assert.equal(app.mutations[0][0].status, 'PENDING')
+  assert.equal(app.mutations[0][0].version, 3)
+  assert.match(text(app.render()), /취소·종료한 예약/)
+  assert.match(text(app.render()), /신청 철회/)
+  assert.doesNotMatch(text(app.render()), /다가오는 예약·신청/)
+  app.unmount()
+})
+
+test('rejected, withdrawn and expired details render in closed records with distinct labels', async () => {
+  for (const [status, label] of [['REJECTED', '신청 마감'], ['WITHDRAWN', '신청 철회'], ['EXPIRED', '신청 만료']]) {
+    const app = mount({ page: 'Reservations', id: reservation.id, read: async () => ({ ...reservation, status, allowedActions: [] }) })
+    await tick()
+    assert.match(text(app.render()), /취소·종료한 예약/)
+    assert.ok(text(app.render()).includes(label))
+    assert.doesNotMatch(text(app.render()), /다가오는 예약·신청/)
+    app.unmount()
+  }
+})
+
+test('withdrawal conflict refreshes server state and prevents another stale action', async () => {
+  let item = { ...reservation, status: 'PENDING' }
+  const cache = new Map([['list', [[item], [], []]], [`detail:${item.id}`, [[item], [], []]]])
+  const app = mount({ page: 'Reservations', cache, id: item.id, read: async () => item, mutate: async () => {
+    item = { ...item, status: 'CONFIRMED' }
+    throw new BackendApiError(409, 'VERSION_CONFLICT', '이미 선택된 신청이에요.')
+  } })
+  await tick()
+  button(app.render(), '신청 철회').props.onClick()
+  button(app.render(), '신청 철회하기').props.onClick()
+  await tick()
+  assert.equal(cache.has('list'), false)
+  app.render(); await tick()
+  assert.equal(app.calls.length, 2)
+  assert.equal(button(app.render(), '신청 철회하기').props.disabled, true)
+  assert.match(text(app.render()), /이미 선택된 신청이에요/)
+  app.unmount()
 })
 
 test('notification revalidation retains cached records on failure and clears the error after retry', async () => {

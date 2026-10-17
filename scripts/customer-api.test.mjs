@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { prepareReservation, reserveSlot, readCategories, readItems, readReservations, readStore, readWaitlist, saveWaitlist, cancelWaitlist, storeSearchPath, searchStores } from '../src/lib/customer-api.ts'
+import { prepareReservation, reserveSlot, readCategories, readItems, readReservations, readStore, readStoreSlot, readWaitlist, saveWaitlist, cancelWaitlist, storeSearchPath, searchStores } from '../src/lib/customer-api.ts'
 import { categoryImage } from '../src/lib/shop-images.ts'
 
 const spec = JSON.parse(readFileSync(new URL('../docs/openapi.snapshot.json', import.meta.url)))
@@ -166,7 +166,7 @@ test('booking retries a lost response with the exact prepared body and idempoten
     if (url.endsWith('/auth/csrf')) return success({ csrfToken: 'csrf' })
     writes.push(options)
     if (writes.length === 1) throw new TypeError('response lost after commit')
-    return success({ id: 'already-created-reservation' })
+    return success({ ...example('/api/v1/reservations/{reservationId}'), id: 'already-created-reservation' })
   })
   const body = { slotId: 'slot-1', expectedPrice: 35000, expectedSlotVersion: 3 }
   await assert.rejects(reserveSlot(body, 'retry-key'), { code: 'NETWORK_ERROR' })
@@ -174,6 +174,64 @@ test('booking retries a lost response with the exact prepared body and idempoten
   assert.equal(writes.length, 2)
   assert.equal(writes[0].body, writes[1].body)
   assert.equal(writes[0].headers['Idempotency-Key'], writes[1].headers['Idempotency-Key'])
+})
+
+test('booking policy defaults only missing or null to instant booking and preserves owner selection across entry points', async (t) => {
+  const search = example('/api/v1/search/stores')
+  const waiting = example('/api/v1/search/waitlists/me')
+  const detail = example('/api/v1/stores/{storeId}/slots/{slotId}')
+  const shop = { id: detail.storeId, services: [{ id: detail.serviceId, name: '젤 네일' }] }
+  for (const value of [undefined, null, true, false, 'false', 0, {}]) {
+    search.items[0].bestSlot.instantBooking = value
+    waiting.items[0].offers[0].instantBooking = value
+    detail.instantBooking = value
+    t.mock.method(globalThis, 'fetch', async (url) => success(url.includes('/waitlists/') ? waiting : url.includes('/slots/') ? detail : search))
+    if (value == null || typeof value === 'boolean') {
+      const expected = value !== false
+      assert.equal((await searchStores('', '', null))[0].slots[0].instantBooking, expected)
+      assert.equal((await readWaitlist())[0].offers[0].instantBooking, expected)
+      assert.equal((await readStoreSlot(shop, detail.id)).instantBooking, expected)
+    } else {
+      await assert.rejects(searchStores('', '', null), { code: 'INVALID_RESPONSE' })
+      await assert.rejects(readWaitlist(), { code: 'INVALID_RESPONSE' })
+      await assert.rejects(readStoreSlot(shop, detail.id), { code: 'INVALID_RESPONSE' })
+    }
+  }
+})
+
+test('booking rechecks current policy and never sends a client-selected confirmation policy', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => success({ ...currentSlot, instantBooking: false }))
+  await assert.rejects(prepareReservation('store', displayedSlot), /예약 조건이 변경/)
+  const body = await prepareReservation('store', { ...displayedSlot, instantBooking: false }, 'wait-1')
+  assert.deepEqual(body, { slotId: 'slot-1', expectedPrice: 35000, expectedSlotVersion: 3, waitlistId: 'wait-1' })
+  const reservation = example('/api/v1/reservations/{reservationId}')
+  const writes = []
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url.endsWith('/auth/csrf')) return success({ csrfToken: 'csrf' })
+    writes.push(options)
+    return success(reservation)
+  })
+  for (const status of ['PENDING', 'CONFIRMED']) {
+    reservation.status = status
+    assert.equal((await reserveSlot(body, 'same-request-key')).status, status)
+  }
+  assert.deepEqual(JSON.parse(writes[0].body), body)
+  assert.equal(writes[0].headers['X-CSRF-Token'], 'csrf')
+  assert.equal(writes[0].headers['Idempotency-Key'], 'same-request-key')
+  assert.equal(writes[1].body, writes[0].body)
+  reservation.status = 'REJECTED'
+  await assert.rejects(reserveSlot(body, 'same-request-key'), { code: 'INVALID_RESPONSE' })
+})
+
+test('customer reservation queries preserve pending and closed application statuses and reject unknown statuses', async (t) => {
+  const response = example('/api/v1/reservations/me')
+  t.mock.method(globalThis, 'fetch', async () => success(response))
+  for (const status of ['PENDING', 'CONFIRMED', 'REJECTED', 'WITHDRAWN', 'EXPIRED', 'COMPLETED', 'CANCELED', 'NO_SHOW']) {
+    response.items[0].status = status
+    assert.equal((await readReservations('UPCOMING'))[0].status, status)
+  }
+  response.items[0].status = 'APPROVED'
+  await assert.rejects(readReservations('UPCOMING'), { code: 'INVALID_RESPONSE' })
 })
 
 test('waitlist create, edit and cancel preserve full conditions and use the current version', async (t) => {
@@ -208,4 +266,21 @@ test('individual reservation and waitlist detail validate IDs and preserve agree
   assert.equal((await readWaitlistItem(waitlist.id)).version, waitlist.version)
   await assert.rejects(readReservation('wrong-id'), { code: 'INVALID_RESPONSE' })
   await assert.rejects(readWaitlistItem('wrong-id'), { code: 'INVALID_RESPONSE' })
+})
+
+
+test('date-based shop slots retain the booking policy and reject malformed policy values', async (t) => {
+  const slots = example('/api/v1/stores/{storeId}/slots')
+  slots.items = slots.items.filter((slot) => slot.bookable)
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    const path = new URL(url, 'https://example.org').pathname
+    return success(path.endsWith('/slots') ? slots : example(path.endsWith('/services') ? '/api/v1/stores/{storeId}/services' : '/api/v1/stores/{storeId}'))
+  })
+  for (const policy of [undefined, null, true, false]) {
+    slots.items[0].instantBooking = policy
+    const shop = await readStore('shop_moment', '2026-10-17')
+    assert.equal(shop.slots[0].instantBooking, policy !== false)
+  }
+  slots.items[0].instantBooking = 'false'
+  await assert.rejects(readStore('shop_moment', '2026-10-17'), { code: 'INVALID_RESPONSE' })
 })

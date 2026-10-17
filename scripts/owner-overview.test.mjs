@@ -73,7 +73,7 @@ function mount({ page = 'Home', cache = new Map(), visibility = 'visible', read 
         readOwnerTimetable(...args) { calls.push(args); return read(...args) },
         readOwnerVacancies(...args) { calls.push(args); return read(...args) },
       }
-      const component = { '../../components/Icon': 'Icon', '../../components/LoadingIndicator': 'LoadingIndicator', '../../components/Modal': 'Modal', '../../components/owner/Schedule': 'OwnerSchedule', '../../components/owner/SlotDialog': 'SlotDialog', '../../components/owner/PublishDialog': 'PublishDialog' }[name]
+      const component = { '../../components/Icon': 'Icon', '../../components/LoadingIndicator': 'LoadingIndicator', '../../components/Modal': 'Modal', '../../components/owner/Schedule': 'OwnerSchedule', '../../components/owner/SlotDialog': 'SlotDialog', '../../components/owner/ReservationRequests': 'ReservationRequests', '../../components/owner/PublishDialog': 'PublishDialog' }[name]
       if (component) return { [component]: component }
       throw new Error(`Unexpected import: ${name}`)
     },
@@ -187,6 +187,17 @@ test('background refresh errors keep the timetable visible and allow notificatio
   app.unmount()
 })
 
+test('canceling an owner reservation refreshes the timetable and reports cancellation', async () => {
+  const app = mount()
+  await tick()
+  find(app.render(), (node) => node.type === 'OwnerSchedule').props.onUpdated({ status: 'CANCELED' })
+  assert.match(text(app.render()), /예약을 취소했어요/)
+  assert.doesNotMatch(text(app.render()), /시술 완료로 처리/)
+  await tick()
+  assert.equal(app.calls.length, 2)
+  app.unmount()
+})
+
 test('visible polling avoids overlapping requests, resumes on return and ignores unmounted responses', async () => {
   const requests = []
   const app = mount({ visibility: 'hidden', read: () => { const request = deferred(); requests.push(request); return request.promise } })
@@ -239,4 +250,19 @@ test('vacancy refresh preserves cached entries while pending and after a failure
   assert.equal(nodes(app.render()).filter((node) => node.type === 'article').length, 1)
   assert.match(text(app.render()), /빈자리 조회 실패/)
   app.unmount()
+})
+
+
+test('a withdrawn vacancy with time remaining can be republished with new conditions', async () => {
+  const withdrawn = { ...vacancy(), status: 'WITHDRAWN' }
+  const app = mount({ page: 'Alerts', read: async () => [withdrawn] })
+  await tick()
+  button(app.render(), '다시 발행하기').props.onClick()
+  const dialog = find(app.render(), (node) => node.type === 'PublishDialog')
+  assert.equal(dialog.props.vacancy.status, 'WITHDRAWN')
+  app.unmount()
+  const expired = mount({ page: 'Alerts', read: async () => [{ ...withdrawn, availableUntil: '2000-10-19T12:00:00+09:00' }] })
+  await tick()
+  assert.equal(nodes(expired.render()).some((node) => node.type === 'button' && text(node) === '다시 발행하기'), false)
+  expired.unmount()
 })

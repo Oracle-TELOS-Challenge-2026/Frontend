@@ -15,7 +15,7 @@ import { ReservationDialog } from '../../components/customer/ReservationDialog'
 
 export type WaitlistCache = Map<string, WaitlistItem[]>
 
-export function WaitlistPage({ cache, savedLocation = null, revision = 0 }: { cache: WaitlistCache; savedLocation?: WaitlistConditions['location']; revision?: number }) {
+export function WaitlistPage({ cache, savedLocation = null, revision = 0, onBookingChanged }: { cache: WaitlistCache; savedLocation?: WaitlistConditions['location']; revision?: number; onBookingChanged?: () => void }) {
   const { id } = useParams()
   const key = id ? `detail:${id}` : 'list'
   const [params] = useSearchParams()
@@ -89,14 +89,14 @@ export function WaitlistPage({ cache, savedLocation = null, revision = 0 }: { ca
       {items.length ? items.map((item) => <article key={item.id} className="waitlist-card"><div className="record-status"><span className={`badge ${item.offers.length ? 'coral' : ''}`}>{item.offers.length ? '✦ 예약할 수 있어요' : item.availability === 'CLOSED' ? '대기 종료' : '빈자리 기다리는 중'}</span><span>{dateLabel(item.createdAt)} 신청</span></div>
         <h3>{item.store?.name ?? `${CATEGORY_LABELS[item.conditions.category]} 주변 가게`}</h3>{item.service && <p>{item.service.name}</p>}
         <div className="record-schedule"><Icon name="clock" size={15} /><span>{dateLabel(item.conditions.windowStart)} {timeLabel(item.conditions.windowStart)} ~<br />{dateLabel(item.conditions.windowEnd)} {timeLabel(item.conditions.windowEnd)}</span></div>
-        {item.offers.map((slot) => <div key={slot.id} className="slot-option"><strong>{slot.shopName} · {slot.service}</strong><p>{dateLabel(slot.startsAt)} · {timeLabel(slot.startsAt)}</p><Price price={slot.price} originalPrice={slot.originalPrice} /><button className="button small" style={{ width: '100%' }} onClick={() => setPendingBooking({ shop: { id: slot.shopId, name: slot.shopName }, slot, waitlistId: item.id })}>이 시간 예약하기<Icon name="chevron-right" size={15} /></button></div>)}
+        {item.offers.map((slot) => <div key={slot.id} className="slot-option"><strong>{slot.shopName} · {slot.service}</strong><p>{dateLabel(slot.startsAt)} · {timeLabel(slot.startsAt)}</p><span className="badge">{slot.instantBooking === false ? '사장님 선택' : '즉시확정'}</span><Price price={slot.price} originalPrice={slot.originalPrice} /><button className="button small" style={{ width: '100%' }} onClick={() => setPendingBooking({ shop: { id: slot.shopId, name: slot.shopName }, slot, waitlistId: item.id })}>{slot.instantBooking === false ? '예약 신청' : '이 시간 예약하기'}<Icon name="chevron-right" size={15} /></button></div>)}
         {!item.offers.length && item.conditions.storeId && <Link className="button secondary small" style={{ width: '100%' }} to={`/customer/shops/${encodeURIComponent(item.conditions.storeId)}`}>다른 시간 둘러보기</Link>}
         <div className="record-secondary-actions">{!id && <Link to={`/customer/waitlist/${encodeURIComponent(item.id)}`}>상세 보기</Link>}{item.status === 'ACTIVE' && <><button onClick={() => setEditing(item)}>시간 변경</button><button onClick={() => { setRemoving(item); setRemoveError(''); request.current = { version: item.version, key: crypto.randomUUID() } }}>대기 취소</button></>}</div>
       </article>) : <div className="empty-state"><Icon name="bell" size={35} /><h2>기다리는 빈자리가 없어요</h2><p>마음에 드는 가게에서 알림을 신청해 보세요.</p><Link className="button secondary" to="/customer">가게 둘러보기</Link></div>}
     </>}
     {showIntent && <IntentDialog savedLocation={savedLocation} onClose={() => setShowIntent(false)} onSaved={() => { invalidate(); reload() }} />}
     {editing && <WaitlistDialog item={editing} onSaved={() => invalidate(editing.id)} onClose={() => { setEditing(null); reload() }} />}
-    {pendingBooking && <ReservationDialog {...pendingBooking} onClose={() => { setPendingBooking(null); reload() }} />}
+    {pendingBooking && <ReservationDialog {...pendingBooking} onChanged={() => { invalidate(pendingBooking.waitlistId); onBookingChanged?.(); reload() }} onClose={() => { setPendingBooking(null); reload() }} />}
     {removing && <Modal title="빈자리 대기를 취소할까요?" onClose={() => { if (!busy.current) closeRemove() }} className="customer-dialog">
       <p className="muted">취소하면 이 조건의 빈자리 알림을 받을 수 없어요.</p>
       {removeError && <p className="form-error" role="alert">{removeError}</p>}

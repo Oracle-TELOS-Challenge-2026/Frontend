@@ -10,6 +10,7 @@ export function notificationClickPath(value: unknown, origin: string, metadata: 
     for (const key of ['notificationType', 'roomId', 'messageId', 'notificationId']) {
       if (typeof metadata[key] === 'string') url.searchParams.set(key, metadata[key])
     }
+    if (metadata.instantBooking === 'true' || metadata.instantBooking === 'false') url.searchParams.set('instantBooking', metadata.instantBooking)
     return url.pathname + url.search + url.hash
   } catch { return null }
 }
