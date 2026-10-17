@@ -46,20 +46,24 @@ export function ShopMap({ shops, expanded, selectedId, onSelect, onSearchArea }:
     const { map, maps } = instance
     const onMove = () => {
       const previous = searchedArea.current
-      const changed = previous !== null && hasSearchAreaChanged(previous.bounds, readBounds(map), previous.level, map.getLevel())
+      const changed = Boolean(selectedId) || previous !== null && hasSearchAreaChanged(previous.bounds, readBounds(map), previous.level, map.getLevel())
       setAreaChanged(changed)
       if (changed) onSelect(null)
     }
     maps.event.addListener(map, 'dragend', onMove)
     maps.event.addListener(map, 'zoom_changed', onMove)
-    const bounds = readBounds(map)
-    searchedArea.current = { bounds, level: map.getLevel() }
-    onSearchArea(bounds)
     return () => {
       maps.event.removeListener(map, 'dragend', onMove)
       maps.event.removeListener(map, 'zoom_changed', onMove)
     }
-  }, [instance, onSelect, onSearchArea])
+  }, [instance, onSelect, selectedId])
+
+  useEffect(() => {
+    if (!instance) return
+    const bounds = readBounds(instance.map)
+    searchedArea.current = { bounds, level: instance.map.getLevel() }
+    onSearchArea(bounds)
+  }, [instance, onSearchArea])
 
   useEffect(() => {
     const shop = shops.find((item) => item.id === selectedId)
@@ -79,11 +83,11 @@ export function ShopMap({ shops, expanded, selectedId, onSelect, onSearchArea }:
     </div>}
     {instance && shops.map((shop) => {
       const slot = getAvailableSlots(shop)[0]
-      return <ShopMapMarker key={shop.id} instance={instance} shop={shop} slot={slot} selected={shop.id === selectedId} onSelect={onSelect} />
+      return <ShopMapMarker key={shop.id} instance={instance} shop={shop} slot={slot} selected={shop.id === selectedId} onSelect={(id) => { setAreaChanged(false); onSelect(id) }} />
     })}
     {status === 'ready' && <>
       <span className="map-caption">주변 가게 · 최대 반경 10km</span>
-      {areaChanged && <button className="map-search-area" onClick={searchArea}><Icon name="refresh" size={17} />이 지역 재검색</button>}
+      {areaChanged && !selectedId && <button className="map-search-area" onClick={searchArea}><Icon name="refresh" size={17} />이 지역 재검색</button>}
       {instance && <UserLocation instance={instance} onLocate={searchArea} />}
     </>}
   </div>
