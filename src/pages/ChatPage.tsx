@@ -158,7 +158,7 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
       })}
       {conversation.outgoing.map((item) => <div key={item.clientMessageId} className="chat-message mine pending">
         <div className="chat-message-content"><p>{item.content}</p></div>
-        <span className="chat-message-meta chat-delivery" role="status">{item.error ? <><small className="chat-delivery-error">{item.error}</small><button type="button" className="account-text-button" onClick={() => { messageInput.current?.focus(); void sendMessage(conversation.id, item.content, item.clientMessageId).catch(() => {}) }}>다시 보내기</button></> : <small>전송 중…</small>}<time dateTime={item.createdAt}>{timeLabel(item.createdAt)}</time></span>
+        <span className="chat-message-meta chat-delivery" role="status">{item.error ? <><small className="chat-delivery-error">{item.error}</small><button type="button" className="account-text-button" onClick={() => { messageInput.current?.focus(); void sendMessage(conversation.id, item.content, item.clientMessageId).catch(() => {}) }}>다시 보내기</button></> : <small className="chat-delivery-pending">전송 중…</small>}<time dateTime={item.createdAt}>{timeLabel(item.createdAt)}</time></span>
       </div>)}<div ref={messagesEnd} />
     </div>
     {showSuggestion && source && <section className="chat-suggestion" aria-label="예약 제안 안내">
