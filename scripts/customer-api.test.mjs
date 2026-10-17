@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { prepareReservation, reserveSlot, readCategories, readItems, readReservations, readStore, readStoreSlot, readWaitlist, saveWaitlist, cancelWaitlist, storeSearchPath, searchStores } from '../src/lib/customer-api.ts'
+import { prepareReservation, reserveSlot, readCategories, readItems, readReservations, readStore, readStoreSlot, readStoreTimetable, readWaitlist, saveWaitlist, cancelWaitlist, storeSearchPath, searchStores } from '../src/lib/customer-api.ts'
 import { categoryImage } from '../src/lib/shop-images.ts'
 
 const spec = JSON.parse(readFileSync(new URL('../docs/openapi.snapshot.json', import.meta.url)))
@@ -96,17 +96,17 @@ test('search and detail share category examples for missing photos and preserve 
     for (const image of [null, '', 'javascript:alert(1)', 'https://example.org/store.webp']) {
       search.items[0].store.imageUrl = detail.imageUrl = image
       const [result] = await searchStores('', '', null)
-      const shop = await readStore(detail.id, '2026-10-16')
+      const shop = await readStore(detail.id)
       assert.equal(result.image, image?.startsWith('https:') ? image : categoryImage(detail.id, category))
       assert.equal(shop.image, result.image)
     }
   }
   search.items[0].store.imageUrl = detail.imageUrl = 123
   await assert.rejects(searchStores('', '', null), { code: 'INVALID_RESPONSE' })
-  await assert.rejects(readStore(detail.id, '2026-10-16'), { code: 'INVALID_RESPONSE' })
+  await assert.rejects(readStore(detail.id), { code: 'INVALID_RESPONSE' })
 })
 
-test('latest published examples map category, store slots, reservation and waitlist offers', async (t) => {
+test('latest published examples map category, store services, reservation and waitlist offers', async (t) => {
   t.mock.method(globalThis, 'fetch', async (url) => {
     const path = new URL(url, 'https://frontend-oracle.vercel.app').pathname
     if (path.endsWith('/categories')) return success(example('/api/v1/stores/categories'))
@@ -119,9 +119,9 @@ test('latest published examples map category, store slots, reservation and waitl
   })
   assert.equal((await readCategories())[0].code, 'NAIL')
   assert.equal((await searchStores('', '', null))[0].category, '네일')
-  const shop = await readStore('shop_moment', '2026-10-16')
-  assert.equal(shop.slots[0].serviceId, shop.services[0].id)
-  assert.equal(shop.slots[0].version, 3)
+  const shop = await readStore('shop_moment')
+  assert.equal(shop.services[0].name, '원컬러 젤 네일')
+  assert.deepEqual(shop.slots, [])
   const reservation = (await readReservations('UPCOMING'))[0]
   assert.equal(reservation.shopName, '네일 모먼트')
   assert.equal(reservation.price, 35000)
@@ -140,11 +140,11 @@ test('new stores without an optional description still open, while invalid descr
     if (path.endsWith('/slots')) return success(example('/api/v1/stores/{storeId}/slots'))
     return success({ ...example('/api/v1/stores/{storeId}'), description })
   })
-  const shop = await readStore('shop_moment', '2026-10-16')
+  const shop = await readStore('shop_moment')
   assert.equal(shop.description, '')
-  assert.equal(shop.slots.length, 1)
+  assert.deepEqual(shop.slots, [])
   description = 123
-  await assert.rejects(readStore('shop_moment', '2026-10-16'), { code: 'INVALID_RESPONSE' })
+  await assert.rejects(readStore('shop_moment'), { code: 'INVALID_RESPONSE' })
 })
 
 test('booking validates latest price, version, service, time and availability before writing', async (t) => {
@@ -269,18 +269,40 @@ test('individual reservation and waitlist detail validate IDs and preserve agree
 })
 
 
-test('date-based shop slots retain the booking policy and reject malformed policy values', async (t) => {
-  const slots = example('/api/v1/stores/{storeId}/slots')
-  slots.items = slots.items.filter((slot) => slot.bookable)
-  t.mock.method(globalThis, 'fetch', async (url) => {
-    const path = new URL(url, 'https://example.org').pathname
-    return success(path.endsWith('/slots') ? slots : example(path.endsWith('/services') ? '/api/v1/stores/{storeId}/services' : '/api/v1/stores/{storeId}'))
+test('public timetable validates dates and reads only anonymous time ranges without caching', async (t) => {
+  const range = { startAt: '2026-10-20T10:00:00+09:00', endAt: '2026-10-20T11:00:00+09:00' }
+  const data = { date: '2026-10-20', timezone: 'Asia/Seoul', openingHours: { closed: false, opensAt: '09:00:00', closesAt: '20:00:00' }, busyTimes: [range], availableTimes: [] }
+  const fetch = t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(new URL(url, 'https://example.org').pathname, '/api/v1/stores/store%2F1/timetable')
+    assert.equal(new URL(url, 'https://example.org').searchParams.get('date'), data.date)
+    assert.equal(options.cache, 'no-store')
+    return success(data)
   })
-  for (const policy of [undefined, null, true, false]) {
-    slots.items[0].instantBooking = policy
-    const shop = await readStore('shop_moment', '2026-10-17')
-    assert.equal(shop.slots[0].instantBooking, policy !== false)
+  await assert.rejects(readStoreTimetable('store/1', '2026-02-30'))
+  assert.equal(fetch.mock.callCount(), 0)
+  assert.deepEqual(await readStoreTimetable('store/1', data.date), data)
+  data.openingHours = { closed: true, opensAt: null, closesAt: null }
+  assert.deepEqual(await readStoreTimetable('store/1', data.date), data)
+  for (const change of [
+    { date: '2026-10-21' }, { timezone: 'UTC' }, { busyTimes: null }, { availableTimes: [{}] },
+    { busyTimes: [{ ...range, endAt: range.startAt }] }, { busyTimes: [{ ...range, startAt: 'invalid' }] },
+    { openingHours: { closed: false, opensAt: '22:00', closesAt: '09:00' } },
+    { openingHours: { closed: false, opensAt: '24:00', closesAt: '25:00' } },
+    { openingHours: { closed: true, opensAt: '09:00', closesAt: '20:00' } },
+  ]) {
+    t.mock.method(globalThis, 'fetch', async () => success({ ...data, ...change }))
+    await assert.rejects(readStoreTimetable('store/1', data.date), { code: 'INVALID_RESPONSE' })
   }
-  slots.items[0].instantBooking = 'false'
-  await assert.rejects(readStore('shop_moment', '2026-10-17'), { code: 'INVALID_RESPONSE' })
+})
+
+test('store detail reads registered services without loading a selectable booking slot list', async (t) => {
+  const calls = []
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    calls.push(new URL(url, 'https://example.org').pathname)
+    return success(example(calls.at(-1).endsWith('/services') ? '/api/v1/stores/{storeId}/services' : '/api/v1/stores/{storeId}'))
+  })
+  const shop = await readStore('shop_moment')
+  assert.equal(shop.services.length, 1)
+  assert.deepEqual(shop.slots, [])
+  assert.deepEqual(calls.sort(), ['/api/v1/stores/shop_moment', '/api/v1/stores/shop_moment/services'])
 })

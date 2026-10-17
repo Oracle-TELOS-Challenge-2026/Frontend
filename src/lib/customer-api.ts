@@ -64,20 +64,10 @@ export async function readStoreServices(storeId: string, signal?: AbortSignal): 
   })
 }
 
-function slotFromResponse(value: unknown, services: StoreService[]): Slot {
-  const row = record(value), price = record(row.price)
-  const serviceId = text(row.serviceId)
-  const service = services.find((item) => item.id === serviceId)
-  if (!service) return invalid()
-  return { id: text(row.id), serviceId, startsAt: timestamp(row.startAt), endsAt: timestamp(row.endAt), service: service.name, price: integer(price.payable), originalPrice: integer(price.original), version: integer(row.version, 1), instantBooking: instantBooking(row.instantBooking) }
-}
-
-export async function readStore(storeId: string, date: string, signal?: AbortSignal): Promise<Shop> {
-  if (!isCalendarDate(date)) throw new Error('올바른 방문 날짜를 선택해 주세요.')
+export async function readStore(storeId: string, signal?: AbortSignal): Promise<Shop> {
   const path = `/api/v1/stores/${apiId(storeId)}`
-  const [{ data }, services, slots] = await Promise.all([
+  const [{ data }, services] = await Promise.all([
     requestBackendApi(path, { signal }), readStoreServices(storeId, signal),
-    readItems(`${path}/slots?${new URLSearchParams({ from: date, to: date, limit: '100' })}`, signal),
   ])
   const row = record(data), location = record(row.location), code = category(row.category)
   const active = services.filter((service) => service.active)
@@ -87,8 +77,31 @@ export async function readStore(storeId: string, date: string, signal?: AbortSig
     description: row.description === null ? '' : text(row.description),
     service: active[0]?.name ?? '', originalPrice: active[0]?.basePrice ?? null, duration: active[0]?.durationMinutes ?? null,
     latitude: number(location.latitude), longitude: number(location.longitude), services: active,
-    slots: slots.filter((item) => record(item).bookable === true).map((item) => slotFromResponse(item, services)),
+    slots: [],
   }
+}
+
+export interface StoreTimetable {
+  date: string
+  timezone: 'Asia/Seoul'
+  openingHours: { closed: boolean; opensAt: string | null; closesAt: string | null }
+  busyTimes: { startAt: string; endAt: string }[]
+  availableTimes: { startAt: string; endAt: string }[]
+}
+
+export async function readStoreTimetable(storeId: string, date: string, signal?: AbortSignal): Promise<StoreTimetable> {
+  if (!isCalendarDate(date)) throw new Error('올바른 방문 날짜를 선택해 주세요.')
+  const { data } = await requestBackendApi(`/api/v1/stores/${apiId(storeId)}/timetable?${new URLSearchParams({ date })}`, { signal })
+  const row = record(data), hours = record(row.openingHours)
+  const validHour = (value: unknown): value is string => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d(?::00)?$/.test(value)
+  if (row.date !== date || row.timezone !== 'Asia/Seoul' || typeof hours.closed !== 'boolean') return invalid()
+  if (hours.closed ? hours.opensAt !== null || hours.closesAt !== null : !validHour(hours.opensAt) || !validHour(hours.closesAt) || hours.opensAt >= hours.closesAt) return invalid()
+  const ranges = (value: unknown) => array(value).map((value) => {
+    const range = record(value), startAt = timestamp(range.startAt), endAt = timestamp(range.endAt)
+    if (Date.parse(startAt) >= Date.parse(endAt)) return invalid()
+    return { startAt, endAt }
+  })
+  return { date, timezone: 'Asia/Seoul', openingHours: { closed: hours.closed, opensAt: hours.opensAt as string | null, closesAt: hours.closesAt as string | null }, busyTimes: ranges(row.busyTimes), availableTimes: ranges(row.availableTimes) }
 }
 
 export function storeSearchPath(query: string, code: string, bounds: SearchBounds | null): string {
