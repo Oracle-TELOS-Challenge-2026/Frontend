@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { prepareReservation, reserveSlot, readCategories, readItems, readReservations, readStore, readWaitlist, saveWaitlist, cancelWaitlist, storeSearchPath, searchStores } from '../src/lib/customer-api.ts'
+import { categoryImage } from '../src/lib/shop-images.ts'
 
 const spec = JSON.parse(readFileSync(new URL('../docs/openapi.snapshot.json', import.meta.url)))
 const example = (path) => structuredClone(spec.paths[path].get.responses['200'].content['application/json'].examples.success.value.success.data)
@@ -35,6 +36,74 @@ test('empty real search results stay empty and malformed data is not replaced by
   assert.deepEqual(await searchStores('', '', null), [])
   t.mock.method(globalThis, 'fetch', async () => success({ items: [{ store: null }], page: { hasNext: false, nextCursor: null } }))
   await assert.rejects(searchStores('', '', null), { code: 'INVALID_RESPONSE' })
+})
+
+test('stores without slots use the first active registered service price, including zero', async (t) => {
+  const search = example('/api/v1/search/stores')
+  search.items[0].bestSlot = null
+  const services = example('/api/v1/stores/{storeId}/services')
+  const service = services.items[0]
+  const requests = []
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    const path = new URL(url, 'https://example.org').pathname
+    requests.push(path)
+    if (path === '/api/v1/search/stores') return success(search)
+    assert.equal(path, `/api/v1/stores/${search.items[0].store.id}/services`)
+    return success(services)
+  })
+  for (const price of [50000, 0]) {
+    services.items = [{ ...service, active: false, basePrice: 1000 }, { ...service, basePrice: price }, { ...service, id: 'cheaper', basePrice: 10000 }]
+    const [shop] = await searchStores('', '', null)
+    assert.equal(shop.originalPrice, price)
+    assert.equal(shop.service, service.name)
+    assert.equal(shop.duration, service.durationMinutes)
+    assert.equal(shop.services.length, 2)
+    assert.deepEqual(shop.slots, [])
+  }
+  for (const items of [[], [{ ...service, active: false }]]) {
+    services.items = items
+    const [shop] = await searchStores('', '', null)
+    assert.equal(shop.originalPrice, null)
+    assert.deepEqual(shop.services, [])
+  }
+  assert.equal(requests.length, 8)
+  services.items = [{ ...service, basePrice: -1 }]
+  await assert.rejects(searchStores('', '', null), { code: 'INVALID_RESPONSE' })
+})
+
+test('stores with bookable slots preserve their price without another service request', async (t) => {
+  const search = example('/api/v1/search/stores')
+  const fetch = t.mock.method(globalThis, 'fetch', async () => success(search))
+  const [shop] = await searchStores('', '', null)
+  assert.equal(shop.slots[0].price, search.items[0].bestSlot.payablePrice)
+  assert.equal(shop.originalPrice, search.items[0].bestSlot.originalPrice)
+  assert.equal(fetch.mock.callCount(), 1)
+})
+
+test('search and detail share category examples for missing photos and preserve server photos', async (t) => {
+  const search = example('/api/v1/search/stores')
+  const detail = example('/api/v1/stores/{storeId}')
+  search.items[0].store.id = detail.id = 'new-store-123'
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    const path = new URL(url, 'https://example.org').pathname
+    if (path === '/api/v1/search/stores') return success(search)
+    if (path.endsWith('/services')) return success(example('/api/v1/stores/{storeId}/services'))
+    if (path.endsWith('/slots')) return success(example('/api/v1/stores/{storeId}/slots'))
+    return success(detail)
+  })
+  for (const category of ['NAIL', 'HAIR', 'EYELASH', 'SKIN']) {
+    search.items[0].store.category = detail.category = category
+    for (const image of [null, '', 'javascript:alert(1)', 'https://example.org/store.webp']) {
+      search.items[0].store.imageUrl = detail.imageUrl = image
+      const [result] = await searchStores('', '', null)
+      const shop = await readStore(detail.id, '2026-10-16')
+      assert.equal(result.image, image?.startsWith('https:') ? image : categoryImage(detail.id, category))
+      assert.equal(shop.image, result.image)
+    }
+  }
+  search.items[0].store.imageUrl = detail.imageUrl = 123
+  await assert.rejects(searchStores('', '', null), { code: 'INVALID_RESPONSE' })
+  await assert.rejects(readStore(detail.id, '2026-10-16'), { code: 'INVALID_RESPONSE' })
 })
 
 test('latest published examples map category, store slots, reservation and waitlist offers', async (t) => {

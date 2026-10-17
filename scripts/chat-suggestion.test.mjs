@@ -2,67 +2,129 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { getChatBookingSuggestion } from '../src/lib/chat-suggestion.ts'
 
-const now = Date.parse('2026-10-16T14:20:00+09:00')
-const message = (content, id = 'request', role = 'CUSTOMER', createdAt = '2026-10-16T10:00:00+09:00') => ({ id, content, sender: { id: role, role }, createdAt })
-const suggestion = (body) => getChatBookingSuggestion([message(body)], now)
+const suggestion = (changes = {}) => ({ sourceMessageId: 'message', sourceContent: '내일 17시에 머리자르고 싶어요', bookingRequested: true, date: '2026-10-18', time: '17:00', serviceDescription: '커트', ...changes })
+const response = (data) => Response.json({ resultType: 'SUCCESS', success: { data }, error: null })
+const failure = (status, code) => Response.json({ resultType: 'FAILURE', success: null, error: { code } }, { status })
 
-test('extracts supported dates and times using the real message date in Seoul', () => {
-  for (const [body, date, time] of [
-    ['내일 오후 3시에 젤 네일 예약하고 싶어요', '2026-10-17', '15:00'],
-    ['모레 오전 11시 반에 가능할까요?', '2026-10-18', '11:30'],
-    ['오늘 오후 2시 21분에 받고 싶어요', '2026-10-16', '14:21'],
-    ['2026-10-20 16:45 예약 가능할까요?', '2026-10-20', '16:45'],
-    ['10월 17일 오후 12시에 예약하고 싶어요', '2026-10-17', '12:00'],
-    ['10월 18일 오전 12시 5분에 예약할게요', '2026-10-18', '00:05'],
-    ['2028-02-29 오후 3시 예약 가능할까요?', '2028-02-29', '15:00'],
-  ]) assert.deepEqual(suggestion(body), { messageId: 'request', date, time }, body)
+function mockAnalysis(t, data) {
+  return t.mock.method(globalThis, 'fetch', async (url) => response(url.endsWith('/csrf') ? { csrfToken: 'csrf' } : data))
+}
+
+test('C-08 posts only persisted room/message IDs with session and fresh CSRF, without a body or idempotency key', async (t) => {
+  const requests = []
+  const data = suggestion({ sourceMessageId: 'message/한 글' })
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    requests.push({ url, options })
+    return response(url.endsWith('/csrf') ? { csrfToken: 'csrf' } : data)
+  })
+  assert.deepEqual(await getChatBookingSuggestion('room/한 글', data.sourceMessageId), data)
+  assert.equal(requests.length, 2)
+  assert.equal(requests[0].url, '/api/v1/auth/csrf')
+  const { url, options } = requests[1]
+  assert.equal(url, '/api/v1/chatting/rooms/room%2F%ED%95%9C%20%EA%B8%80/messages/message%2F%ED%95%9C%20%EA%B8%80/booking-suggestion')
+  assert.equal(options.method, 'POST')
+  assert.equal(options.credentials, 'include')
+  assert.deepEqual(options.headers, { Accept: 'application/json', 'X-CSRF-Token': 'csrf' })
+  assert.equal(options.body, undefined)
+  assert.ok(options.signal instanceof AbortSignal)
 })
 
-test('leaves missing or ambiguous details for the owner to review', () => {
-  assert.deepEqual(suggestion('내일 3시에 예약하고 싶어요'), { messageId: 'request', date: '2026-10-17', time: '' })
-  assert.deepEqual(suggestion('오후 3시에 예약 가능할까요?'), { messageId: 'request', date: '', time: '15:00' })
-  assert.deepEqual(suggestion('젤 네일 받고 싶어요'), { messageId: 'request', date: '', time: '' })
-})
-
-test('does not suggest rejected or canceled requests and unrelated messages', () => {
-  for (const body of [
-    '내일 오후 3시 예약 취소할게요', '내일 오후 3시는 안 돼요. 예약 안 할게요',
-    '예약 거절할게요', '내일 오후 3시 예약 불가능해요', '내일 예약 못 가요',
-    '예약 안 하겠습니다', '예약하지 않을게요', '예약은 오늘 말고 내일로 할게요', '감사합니다',
-  ]) assert.equal(suggestion(body), null, body)
-  assert.equal(getChatBookingSuggestion([], now), null)
-  assert.equal(getChatBookingSuggestion([message('내일 오후 3시 예약 가능해요', 'owner', 'OWNER')], now), null)
-})
-
-test('only the latest customer message is used, so an old request cannot reappear', () => {
-  const oldRequest = message('내일 오후 3시에 예약 가능할까요?', 'old')
-  assert.equal(getChatBookingSuggestion([oldRequest, message('감사합니다', 'latest')], now), null)
-  assert.equal(getChatBookingSuggestion([oldRequest, message('예약 취소할게요', 'latest'), message('알겠습니다', 'reply', 'OWNER')], now), null)
-  assert.deepEqual(getChatBookingSuggestion([oldRequest, message('모레 오후 4시에 예약하고 싶어요', 'latest'), message('확인할게요', 'reply', 'OWNER')], now), { messageId: 'latest', date: '2026-10-18', time: '16:00' })
-})
-
-test('rejects invalid calendar dates, malformed times, and past requests instead of normalizing them', () => {
-  for (const body of [
-    '2027-02-29 오후 3시 예약', '2026-11-31 오후 3시 예약', '2026-13-01 오후 3시 예약',
-    '2026-10-32 오후 3시 예약', '2026-1-17 오후 3시 예약', '11월 31일 오후 3시 예약',
-    '내일 오후 13시 예약', '내일 오전 0시 예약', '내일 오후 3시 60분 예약', '내일 오후 3시 600분 예약',
-    '내일 24:00 예약', '내일 15:60 예약', '내일 9:00 예약', '내일 15:0 예약',
-    '오늘 오후 2시 19분 예약', '2026-10-15 오후 6시 예약', '10월 15일 예약',
-  ]) assert.equal(suggestion(body), null, body)
-})
-
-
-test('recognizes requested phrases with or without spaces', () => {
-  for (const content of ['네일 예약 원합니다', '네일 원합니다', '네일 원합', '네일 원해요 예약', '네일 하고싶어요', '네일 하고 싶어요']) {
-    assert.deepEqual(suggestion(content), { messageId: 'request', date: '', time: '' }, content)
+test('server dates, raw content, and independent null fields survive without local date or intent inference', async (t) => {
+  for (const data of [
+    suggestion({ sourceContent: ' 내일 17시에 머리자르고 싶어요\n', date: '2020-01-01' }),
+    suggestion({ sourceContent: '내일 3시 커트', time: null }),
+    suggestion({ date: null }),
+    suggestion({ date: null, time: null, serviceDescription: null }),
+    suggestion({ date: '2028-02-29', time: '00:00' }),
+    suggestion({ date: '2026-10-18', time: '23:59' }),
+  ]) {
+    mockAnalysis(t, data)
+    assert.deepEqual(await getChatBookingSuggestion('room', 'message'), data)
   }
 })
 
-test('relative dates use the message timestamp across Seoul midnight and year changes', () => {
-  const sentAt = '2026-12-31T15:05:00Z'
-  const instant = Date.parse(sentAt)
-  assert.deepEqual(getChatBookingSuggestion([message('내일 오후 3시에 예약 원합니다', 'request', 'CUSTOMER', sentAt)], instant), { messageId: 'request', date: '2027-01-02', time: '15:00' })
-  assert.deepEqual(getChatBookingSuggestion([message('내일 오후 3시에 예약 원합니다')], Date.parse('2026-10-17T10:00:00+09:00')), { messageId: 'request', date: '2026-10-17', time: '15:00' })
-  assert.equal(getChatBookingSuggestion([message('내일 오후 3시에 예약 원합니다')], Date.parse('2026-10-17T15:00:00+09:00')), null)
-  assert.equal(getChatBookingSuggestion([message('예약 원합니다', 'request', 'CUSTOMER', 'invalid')], now), null)
+test('greetings, cancellations and rejections use the server false result with null analysis fields', async (t) => {
+  for (const sourceContent of ['ㅎㅇ', '감사합니다', '예약 취소할게요', '예약 안 할게요']) {
+    const data = suggestion({ sourceContent, bookingRequested: false, date: null, time: null, serviceDescription: null })
+    mockAnalysis(t, data)
+    assert.deepEqual(await getChatBookingSuggestion('room', 'message'), data)
+  }
+})
+
+test('mismatched sources and malformed fields never become usable suggestions', async (t) => {
+  const malformed = [
+    { sourceMessageId: 'other' }, { sourceMessageId: null },
+    { sourceContent: '' }, { sourceContent: '  ' }, { sourceContent: 'x'.repeat(2001) }, { sourceContent: null },
+    { bookingRequested: 'true' }, { bookingRequested: undefined },
+    ...['2027-02-29', '2026-11-31', '2026-1-01', '2026-13-01', '', undefined, 20261018].map((date) => ({ date })),
+    ...['24:00', '17:60', '5:00', '17:00:00', '', undefined, 1700].map((time) => ({ time })),
+    ...['', '  ', 'x'.repeat(1001), undefined, 1].map((serviceDescription) => ({ serviceDescription })),
+    { bookingRequested: false },
+    { bookingRequested: false, date: null, time: null },
+    { bookingRequested: false, date: null, serviceDescription: null },
+    { bookingRequested: false, time: null, serviceDescription: null },
+  ]
+  for (const changes of malformed) {
+    mockAnalysis(t, suggestion(changes))
+    await assert.rejects(getChatBookingSuggestion('room', 'message'), { code: 'INVALID_RESPONSE' })
+  }
+})
+
+test('invalid path IDs are rejected before any request', async (t) => {
+  const fetch = mockAnalysis(t, suggestion())
+  for (const [roomId, messageId] of [['', 'message'], ['room', '..'], ['room', 'x'.repeat(65)], ['room', 'bad\nmessage']]) {
+    await assert.rejects(getChatBookingSuggestion(roomId, messageId), { code: 'INVALID_REQUEST' })
+  }
+  assert.equal(fetch.mock.callCount(), 0)
+})
+
+test('authorization, missing sources, stale sources and AI failures keep their status and code without retry', async (t) => {
+  for (const [status, code] of [[401, 'UNAUTHORIZED'], [403, 'FORBIDDEN'], [404, 'ROOM_NOT_FOUND'], [404, 'SOURCE_MESSAGE_NOT_FOUND'], [409, 'PROPOSAL_SOURCE_OUTDATED'], [409, 'ROOM_READ_ONLY'], [503, 'OPENAI_NOT_CONFIGURED'], [503, 'CHAT_BOOKING_ANALYSIS_UNAVAILABLE']]) {
+    const fetch = t.mock.method(globalThis, 'fetch', async (url) => url.endsWith('/csrf') ? response({ csrfToken: 'csrf' }) : failure(status, code))
+    await assert.rejects(getChatBookingSuggestion('room', 'message'), { status, code })
+    assert.equal(fetch.mock.callCount(), 2)
+  }
+})
+
+test('CSRF_INVALID refreshes the token and retries this analysis once', async (t) => {
+  const tokens = []
+  let tokenRequests = 0
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url.endsWith('/csrf')) return response({ csrfToken: `csrf-${++tokenRequests}` })
+    tokens.push(options.headers['X-CSRF-Token'])
+    return tokens.length === 1 ? failure(403, 'CSRF_INVALID') : response(suggestion())
+  })
+  assert.deepEqual(await getChatBookingSuggestion('room', 'message'), suggestion())
+  assert.deepEqual(tokens, ['csrf-1', 'csrf-2'])
+  const fetch = t.mock.method(globalThis, 'fetch', async (url) => url.endsWith('/csrf') ? response({ csrfToken: 'csrf' }) : failure(403, 'CSRF_INVALID'))
+  await assert.rejects(getChatBookingSuggestion('room', 'message'), { status: 403, code: 'CSRF_INVALID' })
+  assert.equal(fetch.mock.callCount(), 4)
+})
+
+test('aborting during CSRF lookup prevents analysis even when a late token arrives', async (t) => {
+  const controller = new AbortController()
+  let finish
+  const fetch = t.mock.method(globalThis, 'fetch', () => new Promise((resolve) => { finish = resolve }))
+  const pending = getChatBookingSuggestion('room', 'message', controller.signal)
+  controller.abort()
+  finish(response({ csrfToken: 'csrf' }))
+  await assert.rejects(pending, { name: 'AbortError' })
+  assert.equal(fetch.mock.callCount(), 1)
+})
+
+test('aborting after analysis starts prevents a late successful response from returning', async (t) => {
+  const controller = new AbortController()
+  let finish
+  let started
+  const analysisStarted = new Promise((resolve) => { started = resolve })
+  t.mock.method(globalThis, 'fetch', (url) => {
+    if (url.endsWith('/csrf')) return Promise.resolve(response({ csrfToken: 'csrf' }))
+    started()
+    return new Promise((resolve) => { finish = resolve })
+  })
+  const pending = getChatBookingSuggestion('room', 'message', controller.signal)
+  await analysisStarted
+  controller.abort()
+  finish(response(suggestion()))
+  await assert.rejects(pending, { name: 'AbortError' })
 })

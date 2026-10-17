@@ -6,7 +6,7 @@ import { Price } from './Price'
 
 export function ShopCard({ shop, slot, compact = false }: { shop: Shop; slot?: Slot; compact?: boolean }) {
   return <Link to={`/customer/shops/${encodeURIComponent(shop.id)}${slot ? `?date=${todayInSeoul(new Date(slot.startsAt))}&slotId=${encodeURIComponent(slot.id)}` : ''}`} className={compact ? 'record-shop' : 'shop-result'}>
-    <span className="shop-thumb">{shop.image ? <img src={shop.image} alt={shop.name} /> : <Icon name="store" size={28} />}</span>
+    <span className="shop-thumb">{shop.image ? <img src={shop.image} alt={shop.image.startsWith('/images/shops/') ? `${shop.category} 예시 이미지` : shop.name} loading="lazy" /> : <Icon name="store" size={28} />}</span>
     <div className="shop-result-content">
       <div className="shop-result-title"><h3>{shop.name}</h3>{!compact && <Icon name="chevron-right" size={16} />}</div>
       {!compact && <>

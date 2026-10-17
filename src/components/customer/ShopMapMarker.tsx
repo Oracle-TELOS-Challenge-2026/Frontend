@@ -11,6 +11,8 @@ export function ShopMapMarker({ instance, shop, slot, selected, onSelect }: { in
   const overlayRef = useRef<InstanceType<KakaoMapInstance['maps']['CustomOverlay']> | null>(null)
   const { latitude, longitude } = shop
   const discounted = Boolean(slot && slot.price < slot.originalPrice)
+  const price = slot?.price ?? shop.originalPrice
+  const priceLabel = price === null ? '가격 문의' : money(price)
 
   useEffect(() => {
     const { map, maps } = instance
@@ -24,8 +26,8 @@ export function ShopMapMarker({ instance, shop, slot, selected, onSelect }: { in
 
   useEffect(() => { overlayRef.current?.setZIndex(selected ? 2 : 1) }, [instance, latitude, longitude, selected])
 
-  return createPortal(<button type="button" className={`map-pin ${discounted ? 'discount' : ''} ${selected ? 'selected' : ''}`} aria-label={`${shop.name}, ${shop.category}, ${slot ? `${discounted ? '빈자리 특가' : '예약 가능'}, ${money(slot.price)}` : '빈자리 알림 신청 가능'}`} aria-pressed={selected} aria-controls="shop-results-list" onClick={() => onSelect(shop.id)}>
-    <span className="map-bubble"><span className="map-pin-icon"><Icon name={SHOP_CATEGORIES.find((item) => item.name === shop.category)?.icon ?? 'pin'} size={16} /></span><strong>{slot ? money(slot.price) : shop.category}</strong></span>
+  return createPortal(<button type="button" className={`map-pin ${discounted ? 'discount' : ''} ${selected ? 'selected' : ''}`} aria-label={`${shop.name}, ${shop.category}, ${slot ? discounted ? '빈자리 특가' : '예약 가능' : '빈자리 알림 신청 가능'}, ${priceLabel}`} aria-pressed={selected} aria-controls="shop-results-list" onClick={() => onSelect(shop.id)}>
+    <span className="map-bubble"><span className="map-pin-icon"><Icon name={SHOP_CATEGORIES.find((item) => item.name === shop.category)?.icon ?? 'pin'} size={16} /></span><strong>{priceLabel}</strong></span>
     <span className="map-pin-name">{shop.name}</span>
   </button>, content)
 }

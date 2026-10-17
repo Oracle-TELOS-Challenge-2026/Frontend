@@ -3,6 +3,7 @@ import { CATEGORY_LABELS } from '../data/categories.ts'
 import type { CategoryCode, Reservation, Shop, Slot, StoreService, WaitlistConditions, WaitlistItem } from '../types.ts'
 import type { SearchBounds } from './shop-search.ts'
 import { isCalendarDate } from './format.ts'
+import { categoryImage } from './shop-images.ts'
 
 // 위치를 선택하기 전 지도의 시작점이며, 매장 데이터는 서버에서 조회한다.
 export const DEFAULT_MAP_CENTER = { latitude: 37.5665, longitude: 126.978 }
@@ -81,7 +82,7 @@ export async function readStore(storeId: string, date: string, signal?: AbortSig
   const active = services.filter((service) => service.active)
   return {
     id: text(row.id), name: text(row.name), category: CATEGORY_LABELS[code], categoryCode: code,
-    image: picture(row.imageUrl), address: text(row.address), distance: '',
+    image: picture(row.imageUrl) || categoryImage(text(row.id), code), address: text(row.address), distance: '',
     description: row.description === null ? '' : text(row.description),
     service: active[0]?.name ?? '', originalPrice: active[0]?.basePrice ?? null, duration: active[0]?.durationMinutes ?? null,
     latitude: number(location.latitude), longitude: number(location.longitude), services: active,
@@ -101,19 +102,22 @@ export function storeSearchPath(query: string, code: string, bounds: SearchBound
 
 export async function searchStores(query: string, code: string, bounds: SearchBounds | null, signal?: AbortSignal): Promise<Shop[]> {
   const rows = await readItems(storeSearchPath(query, code, bounds), signal)
-  return rows.map((item) => {
+  return Promise.all(rows.map(async (item) => {
     const row = record(item), store = record(row.store), location = record(row.location), code = category(store.category)
     const slot = row.bestSlot === null ? null : record(row.bestSlot)
     const distance = number(row.distanceMeters)
+    const id = text(store.id)
+    // shortcut: 슬롯 없는 매장은 시술을 개별 조회하며, 검색량이 늘면 검색 응답에 대표 가격을 포함한다.
+    const services = slot ? [] : (await readStoreServices(id, signal)).filter((service) => service.active)
     return {
-      id: text(store.id), name: text(store.name), category: CATEGORY_LABELS[code], categoryCode: code,
-      image: picture(store.imageUrl), address: '', distance: distance < 1000 ? `${distance}m` : `${(distance / 1000).toFixed(1)}km`,
+      id, name: text(store.name), category: CATEGORY_LABELS[code], categoryCode: code,
+      image: picture(store.imageUrl) || categoryImage(id, code), address: '', distance: distance < 1000 ? `${distance}m` : `${(distance / 1000).toFixed(1)}km`,
       description: '',
-      service: slot ? text(slot.serviceName) : '', originalPrice: slot ? integer(slot.originalPrice) : null, duration: null,
-      latitude: number(location.latitude), longitude: number(location.longitude), services: [],
+      service: slot ? text(slot.serviceName) : services[0]?.name ?? '', originalPrice: slot ? integer(slot.originalPrice) : services[0]?.basePrice ?? null, duration: services[0]?.durationMinutes ?? null,
+      latitude: number(location.latitude), longitude: number(location.longitude), services,
       slots: slot ? [{ id: text(slot.id), serviceId: text(slot.serviceId), startsAt: timestamp(slot.startAt), service: text(slot.serviceName), originalPrice: integer(slot.originalPrice), price: integer(slot.payablePrice), version: integer(slot.version, 1) }] : [],
     }
-  })
+  }))
 }
 
 export async function prepareReservation(shopId: string, slot: Slot, waitlistId?: string) {

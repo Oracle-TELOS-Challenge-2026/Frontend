@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Icon } from '../../components/Icon'
+import { chatMessagePreview } from '../../lib/chat'
 import { dateLabel, timeLabel, todayInSeoul } from '../../lib/format'
 import type { useChat } from '../../hooks/useChat'
 
@@ -15,7 +16,7 @@ export function CustomerChats({ chat, userId }: { chat: ReturnType<typeof useCha
         const latest = room.lastMessage
         return <Link className="owner-conversation" key={room.id} to={`/customer/chat/${encodeURIComponent(room.store.id)}`}>
           <span className="owner-avatar" aria-hidden="true"><Icon name="store" size={24} /></span>
-          <div className="owner-conversation-copy"><h2>{room.store.name}</h2><p>{latest?.content ?? '첫 인사를 건네보세요.'}</p></div>
+          <div className="owner-conversation-copy"><h2>{room.store.name}</h2><p>{latest ? chatMessagePreview(latest.content) : '첫 인사를 건네보세요.'}</p></div>
           <div className="owner-conversation-meta">{latest && <time dateTime={latest.createdAt}>{todayInSeoul(new Date(latest.createdAt)) === today ? timeLabel(latest.createdAt) : dateLabel(latest.createdAt)}</time>}{room.unreadCount > 0 && <span className="owner-unread" aria-label={`읽지 않은 메시지 ${room.unreadCount}개`}>{room.unreadCount}</span>}</div>
         </Link>
       })}

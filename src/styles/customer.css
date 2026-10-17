@@ -12,7 +12,7 @@
 .map-role-switch { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
 .customer-categories { display: flex; gap: 6px; margin-top: 12px; overflow-x: auto; scrollbar-width: none; }
 .customer-category { flex: 0 0 auto; min-height: 44px; padding: 8px; border-radius: 14px; background: var(--soft-surface); color: var(--ink); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; transition: background .15s, color .15s; }
-.customer-category.active { color: var(--on-primary); background: var(--primary); }
+.customer-category.active { color: white; background: var(--primary-dark); }
 .neighborhood-map { position: relative; flex: 1; min-height: 0; margin-bottom: var(--sheet-height); overflow: clip; }
 .kakao-map-canvas { position: absolute; inset: 0; z-index: 0; }
 .map-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 20px; text-align: center; background: var(--background); color: var(--muted); font-size: 12px; }

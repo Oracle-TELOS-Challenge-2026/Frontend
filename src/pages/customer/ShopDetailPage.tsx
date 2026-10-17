@@ -34,10 +34,12 @@ export function ShopDetail() {
   if (!shop) return <div className="page empty-state"><h1>가게를 불러오지 못했어요</h1><p role="alert">{error}</p><button className="button secondary" onClick={reload}>다시 시도</button><Link to="/customer">주변 가게 보기</Link></div>
   const slots = loading || error ? [] : getAvailableSlots(shop)
   const selected = slots.find((slot) => slot.id === selectedId) ?? slots[0]
+  const exampleImage = shop.image.startsWith('/images/shops/')
 
   return <div className="shop-detail">
-    <div className="detail-header">{shop.image ? <img src={shop.image} alt={shop.name} /> : <div className="detail-placeholder"><Icon name="store" size={48} /></div>}<Link to="/customer" className="icon-button detail-back" aria-label="주변 가게로 돌아가기"><Icon name="arrow-left" /></Link></div>
+    <div className="detail-header">{shop.image ? <img src={shop.image} alt={exampleImage ? `${shop.category} 예시 이미지` : shop.name} /> : <div className="detail-placeholder"><Icon name="store" size={48} /></div>}<Link to="/customer" className="icon-button detail-back" aria-label="주변 가게로 돌아가기"><Icon name="arrow-left" /></Link></div>
     <div className="detail-content"><div className="detail-title-row"><div><span className="badge">{shop.category}</span><h1>{shop.name}</h1></div><Link to={`/customer/chat/${encodeURIComponent(shop.id)}`} className="icon-button" aria-label={`${shop.name}에 채팅 문의`}><Icon name="chat" size={23} /></Link></div>
+      {exampleImage && <p className="detail-info">카테고리 예시 이미지입니다.</p>}
       <p className="detail-description">{shop.description}</p><p className="detail-info"><Icon name="pin" size={15} />{shop.address}</p>
       <section className="detail-section"><h2>나에게 딱 맞는 시간</h2><p>빈자리를 발견했다면, 기분 좋게 예약해 보세요.</p>
         <label className="detail-date">방문 날짜<input type="date" min={todayInSeoul()} value={date} onChange={(event) => { if (event.target.value) { setLoading(true); setError(''); setSelectedId(''); setDate(event.target.value) } }} /></label>

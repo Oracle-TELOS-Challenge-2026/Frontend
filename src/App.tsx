@@ -154,7 +154,7 @@ function App() {
           <Route path="/customer/reservations/:id" element={<ReservationsPage key={`${user.id}:${location.key}`} cache={customerCache.reservations} refreshKey={reservationRefreshKey} />} />
           <Route path="/customer/reservations" element={<ReservationsPage key={`${user.id}:${location.key}`} cache={customerCache.reservations} refreshKey={reservationRefreshKey} />} />
           <Route path="/customer/shops/:id" element={<ShopDetail key={location.pathname + location.search} />} />
-          <Route path="/customer/chat/:id" element={<ChatPage key={location.pathname} chat={chat} role="customer" userId={user.id} />} />
+          <Route path="/customer/chat/:id" element={<ChatPage key={location.pathname} chat={chat} role="customer" userId={user.id} onRefreshSession={refreshUser} />} />
           <Route path="/customer/profile" element={<ProfilePage role="customer" shop={account.shop} preferences={account.preferences} push={push} user={user} onChanged={refreshUser} onLogout={signOut} />} />
           <Route path="/customer/profile/preferences" element={<PreferencesPage value={account.preferences} onSave={savePreferences} error={error} />} />
         </Route>
@@ -164,7 +164,7 @@ function App() {
           <Route path="/owner/notifications" element={<NotificationsPage notifications={notifications} onOpen={openNotificationPath} />} />
           <Route path="/owner/alerts" element={<OwnerAlerts key={`${user.id}:${location.key}`} ownerShop={account.shop} notify={notify} cache={ownerCache.vacancies} refreshKey={reservationRefreshKey} />} />
           <Route path="/owner/chats" element={<OwnerChats chat={ownerChat} />} />
-          <Route path="/owner/chat/:id" element={<ChatPage key={location.pathname} chat={ownerChat} role="owner" userId={user.id} ownerShop={account.shop} />} />
+          <Route path="/owner/chat/:id" element={<ChatPage key={location.pathname} chat={ownerChat} role="owner" userId={user.id} ownerShop={account.shop} onRefreshSession={refreshUser} />} />
           <Route path="/owner/profile" element={<ProfilePage role="owner" shop={account.shop} preferences={account.preferences} push={push} user={user} onChanged={refreshUser} onLogout={signOut} />} />
         </Route>
         <Route path="*" element={<Navigate to={startPath} replace />} />

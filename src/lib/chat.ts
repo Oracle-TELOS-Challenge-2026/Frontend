@@ -122,6 +122,11 @@ export function continuesMessageGroup(message: { sender: { id: string }; created
   return next?.sender.id === message.sender.id && Math.floor(Date.parse(message.createdAt) / 60000) === Math.floor(Date.parse(next.createdAt) / 60000)
 }
 
+export function chatMessagePreview(content: string): string {
+  const characters = Array.from(new Intl.Segmenter('ko', { granularity: 'grapheme' }).segment(content), ({ segment }) => segment)
+  return characters.length > 20 ? `${characters.slice(0, 20).join('')}...` : content
+}
+
 export function mergeChatMessages(existing: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
   const messages = new Map(existing.map((item) => [item.id, item]))
   for (const item of incoming) {

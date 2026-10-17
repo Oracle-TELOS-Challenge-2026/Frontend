@@ -2,8 +2,16 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { confirmBookingProposal, connectChatRoom, continuesMessageGroup, createChatRoom, fetchChatMessages, fetchChatRooms, mergeChatMessages, parseChatMessage, parseChatRoom, postBookingProposal, postChatMessage, putChatRead } from '../src/lib/chat.ts'
+import { chatMessagePreview, confirmBookingProposal, connectChatRoom, continuesMessageGroup, createChatRoom, fetchChatMessages, fetchChatRooms, mergeChatMessages, parseChatMessage, parseChatRoom, postBookingProposal, postChatMessage, putChatRead } from '../src/lib/chat.ts'
 import { useChat } from '../src/hooks/useChat.ts'
+
+test('chat list previews keep up to 20 characters and append three dots without splitting emoji', () => {
+  for (const content of ['', '안녕하세요', '가'.repeat(19), '가'.repeat(20)]) assert.equal(chatMessagePreview(content), content)
+  assert.equal(chatMessagePreview('가'.repeat(21)), `${'가'.repeat(20)}...`)
+  assert.equal(chatMessagePreview(`${'가'.repeat(19)}👩🏽‍💻`), `${'가'.repeat(19)}👩🏽‍💻`)
+  assert.equal(chatMessagePreview(`${'가'.repeat(19)}👩🏽‍💻추가`), `${'가'.repeat(19)}👩🏽‍💻...`)
+  assert.equal(chatMessagePreview(`${'가'.repeat(19)}e\u0301추가`), `${'가'.repeat(19)}e\u0301...`)
+})
 
 const message = (sequence = 1, sender = 'customer', createdAt = '2026-10-16T23:46:01+09:00') => ({ id: `msg-${sequence}`, roomId: 'room', sequence, sender: { id: sender, role: sender === 'customer' ? 'CUSTOMER' : 'OWNER', displayName: sender }, clientMessageId: `request-${sequence}`, type: 'TEXT', content: `메시지 ${sequence}`, createdAt })
 const room = (id = 'room') => ({ id, store: { id: 'shop', name: '가게', imageUrl: null }, customer: { id: 'customer', displayName: '고객' }, status: 'OPEN', lastMessage: null, unreadCount: 0, lastReadSequence: 0, createdAt: '2026-10-16T14:00:00+09:00' })
