@@ -5,6 +5,7 @@ import test from 'node:test'
 import ts from 'typescript'
 import * as model from '../src/model.ts'
 import { CATEGORY_LABELS } from '../src/data/categories.ts'
+import { BackendApiError } from '../src/lib/backend-api.ts'
 
 const compiled = ts.transpileModule(readFileSync(new URL('../src/pages/customer/WaitlistPage.tsx', import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
@@ -20,6 +21,7 @@ function elements(node) {
 
 async function mount({ read = async () => original, cancel = async () => {} } = {}) {
   const slots = [], effects = [], calls = { reads: 0, lists: 0, cancels: [] }
+  const cache = new Map()
   let cursor = 0, key = 0
   const jsx = (type, props) => ({ type, props })
   const exports = {}
@@ -30,7 +32,7 @@ async function mount({ read = async () => original, cancel = async () => {} } = 
       if (name === 'react') return {
         useState(initial) {
           const index = cursor++
-          slots[index] ??= { value: initial }
+          slots[index] ??= { value: typeof initial === 'function' ? initial() : initial }
           return [slots[index].value, (value) => { slots[index].value = typeof value === 'function' ? value(slots[index].value) : value }]
         },
         useRef: (current) => slots[cursor++] ??= { current },
@@ -45,6 +47,7 @@ async function mount({ read = async () => original, cancel = async () => {} } = 
       if (name === 'react-router-dom') return { Link: 'Link', useParams: () => ({}), useSearchParams: () => [new URLSearchParams()] }
       if (name === '../../model') return model
       if (name === '../../data/categories') return { CATEGORY_LABELS }
+      if (name === '../../lib/backend-api') return { BackendApiError }
       if (name === '../../lib/customer-api') return {
         readWaitlist: async () => { calls.lists++; return [original] },
         readWaitlistItem: async () => { calls.reads++; return read() },
@@ -56,7 +59,7 @@ async function mount({ read = async () => original, cancel = async () => {} } = 
   }))
   function render() {
     cursor = 0
-    const nodes = elements(exports.WaitlistPage({}))
+    const nodes = elements(exports.WaitlistPage({ cache }))
     effects.splice(0).forEach((effect) => effect())
     return nodes
   }

@@ -1,26 +1,34 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Icon } from '../../components/Icon'
+import { LoadingIndicator } from '../../components/LoadingIndicator'
 import { Modal } from '../../components/Modal'
 import { dateLabel, timeLabel, todayInSeoul } from '../../model'
 import type { Reservation } from '../../model'
 import { cancelReservation, readReservation, readReservations } from '../../lib/customer-api'
+import { BackendApiError } from '../../lib/backend-api'
 import { Price } from '../../components/customer/Price'
 
 const scopes = [{ scope: 'UPCOMING', title: '다가오는 예약' }, { scope: 'PAST', title: '지난 예약' }, { scope: 'CANCELED', title: '취소한 예약' }] as const
 const statusLabels = { CONFIRMED: '예약 확정', COMPLETED: '이용 완료', CANCELED: '예약 취소', NO_SHOW: '미방문' }
 
-export function ReservationsPage() {
+export type ReservationsCache = Map<string, Reservation[][]>
+
+export function ReservationsPage({ cache, refreshKey = '' }: { cache: ReservationsCache; refreshKey?: string }) {
   const { id } = useParams()
-  const [groups, setGroups] = useState<Reservation[][]>([[], [], []])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [result, setResult] = useState<{ key: string; requestKey: string; groups?: Reservation[][]; error: string } | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [canceling, setCanceling] = useState<Reservation | null>(null)
   const [cancelError, setCancelError] = useState('')
   const [pending, setPending] = useState(false)
   const busy = useRef(false)
   const requestId = useRef('')
+  const key = id ? `detail:${id}` : 'list'
+  const requestKey = JSON.stringify([key, attempt, refreshKey])
+  const current = result?.key === key ? result : null
+  const groups = current?.groups ?? cache.get(key)
+  const loading = current?.requestKey !== requestKey
+  const error = loading ? '' : current?.error ?? ''
 
   useEffect(() => {
     const controller = new AbortController()
@@ -29,26 +37,44 @@ export function ReservationsPage() {
       return scopes.map((_, group) => group === index ? [item] : [])
     }) : Promise.all(scopes.map(({ scope }) => readReservations(scope, controller.signal)))
     void request.then((items) => {
-      if (!controller.signal.aborted) setGroups(items)
-    }).catch((cause: unknown) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '예약내역을 조회하지 못했어요.') })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+      if (controller.signal.aborted) return
+      cache.set(key, items)
+      setResult({ key, requestKey, groups: items, error: '' })
+    }).catch((cause: unknown) => {
+      if (controller.signal.aborted) return
+      const denied = cause instanceof BackendApiError && (cause.status === 401 || cause.status === 403)
+      const missing = Boolean(id && cause instanceof BackendApiError && cause.status === 404)
+      if (denied) cache.clear()
+      else if (missing) cache.delete(key)
+      if (denied || missing) setCanceling(null)
+      setResult((previous) => ({
+        key, requestKey, groups: denied || missing ? undefined : (previous?.key === key ? previous.groups : undefined) ?? cache.get(key),
+        error: cause instanceof Error ? cause.message : '예약내역을 조회하지 못했어요.',
+      }))
+    })
     return () => controller.abort()
-  }, [attempt, id])
+  }, [cache, id, key, requestKey])
 
-  function reload() { setLoading(true); setError(''); setAttempt((value) => value + 1) }
+  function reload() { setAttempt((value) => value + 1) }
   function closeCancel() { setCanceling(null); if (cancelError) reload() }
   async function cancel() {
     if (!canceling || busy.current) return
     busy.current = true
     setPending(true)
     setCancelError('')
-    try { await cancelReservation(canceling, requestId.current); setCanceling(null); reload() }
+    try {
+      await cancelReservation(canceling, requestId.current)
+      setResult((previous) => previous?.key === key ? previous : { key, requestKey, groups, error: '' })
+      cache.delete('list'); cache.delete(`detail:${canceling.id}`)
+      setCanceling(null); reload()
+    }
     catch (cause) { setCancelError(cause instanceof Error ? cause.message : '예약을 취소하지 못했어요.') }
     finally { busy.current = false; setPending(false) }
   }
 
   return <div className="page"><header className="customer-record-heading notification-heading"><div><p className="eyebrow">나를 위한 시간이 기다려요</p><h1 className="page-heading">{id ? '예약 상세' : '예약내역'}</h1>{id && <Link to="/customer/reservations">전체 예약내역</Link>}<p className="muted">기분 좋은 약속, 여기 모아두었어요.</p></div><button type="button" className="icon-button refresh-button" aria-label="새로고침" title="새로고침" disabled={loading} aria-busy={loading} onClick={reload}><Icon name="refresh" size={20} /></button></header>
-    {loading ? <p role="status">예약내역을 불러오고 있어요…</p> : error ? <div className="form-error" role="alert">{error}<button className="button secondary" onClick={reload}>다시 시도</button></div> : <>
+    {error && <div className="form-error" role="alert">{groups && '저장된 예약내역을 표시하고 있어요. '}{error}<button className="button secondary" onClick={reload}>다시 시도</button></div>}
+    {!groups && loading ? <LoadingIndicator label="예약내역을 불러오고 있어요…" /> : groups && <>
       <div className="customer-note"><Icon name="calendar" size={20} /><span>{groups[0].length ? <>다가오는 예약이 <strong>{groups[0].length}건</strong> 있어요.</> : '아직 다가오는 예약이 없어요.'}</span></div>
       {scopes.map((group, index) => (!id || groups[index].length > 0) && <section key={group.scope}><h2 className="record-count">{group.title} <strong>{groups[index].length}</strong></h2>{groups[index].map((item) => <article key={item.id} className={`reservation-card ${index > 0 ? 'completed' : ''}`}>
         <div className="record-status"><span className="badge">{statusLabels[item.status]}</span><span>{todayInSeoul(new Date(item.startsAt)) === todayInSeoul() ? '오늘' : dateLabel(item.startsAt)}</span></div>
