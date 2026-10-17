@@ -118,7 +118,7 @@ export function parseChatRoom(value: unknown): ChatRoom {
   }
 }
 
-export function continuesMessageGroup(message: ChatMessage, next?: ChatMessage): boolean {
+export function continuesMessageGroup(message: { sender: { id: string }; createdAt: string }, next?: { sender: { id: string }; createdAt: string }): boolean {
   return next?.sender.id === message.sender.id && Math.floor(Date.parse(message.createdAt) / 60000) === Math.floor(Date.parse(next.createdAt) / 60000)
 }
 

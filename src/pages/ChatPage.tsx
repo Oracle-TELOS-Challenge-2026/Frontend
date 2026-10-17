@@ -92,6 +92,7 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
   const error = sendError || syncError || chat.error
   const fallback = role === 'owner' ? '/owner/chats' : '/customer'
   if (!conversation) return <div className="page empty-state"><h1>{loading || (role === 'customer' && !openingFailed) ? '대화를 불러오는 중이에요' : '대화를 불러올 수 없어요'}</h1>{error && <p className="form-error" role="alert">{error}</p>}<button type="button" className="button secondary" onClick={() => { setOpeningFailed(false); setSyncError(''); setAttempt((value) => value + 1); void refreshRooms() }}>다시 시도</button><Link to={fallback} className="button">돌아가기</Link></div>
+  const outgoing = conversation.outgoing.map((item) => ({ ...item, sender: { id: userId } }))
   const title = role === 'customer' ? conversation.store.name : conversation.customer.displayName
   const back = role === 'owner' ? '/owner/chats' : `/customer/shops/${encodeURIComponent(conversation.store.id)}`
   const readOnly = conversation.status === 'READ_ONLY'
@@ -136,7 +137,7 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
       {!conversation.messagesLoaded ? <p className="muted">메시지를 불러오는 중이에요.</p> : conversation.messages.length === 0 && conversation.outgoing.length === 0 && <p className="empty-state">첫 인사를 건네보세요.</p>}
       {conversation.messages.map((item, index) => {
         const previous = conversation.messages[index - 1]
-        const grouped = continuesMessageGroup(item, conversation.messages[index + 1])
+        const grouped = continuesMessageGroup(item, conversation.messages[index + 1] ?? outgoing[0])
         const mine = item.sender.id === userId
         // shortcut: 초기 상대 읽음 위치가 API에 추가되면 재접속 시의 미확인 표시를 해소한다.
         const unread = mine && item.sequence > (conversation.peerReadSequence ?? 0)
@@ -156,10 +157,13 @@ export function ChatPage({ chat, role, userId, ownerShop }: { chat: ReturnType<t
           </div>
         </Fragment>
       })}
-      {conversation.outgoing.map((item) => <div key={item.clientMessageId} className="chat-message mine pending">
-        <div className="chat-message-content"><p>{item.content}</p></div>
-        <span className="chat-message-meta chat-delivery" role="status">{item.error ? <><small className="chat-delivery-error">{item.error}</small><button type="button" className="account-text-button" onClick={() => { messageInput.current?.focus(); void sendMessage(conversation.id, item.content, item.clientMessageId).catch(() => {}) }}>다시 보내기</button></> : <small className="chat-delivery-pending">전송 중…</small>}<time dateTime={item.createdAt}>{timeLabel(item.createdAt)}</time></span>
-      </div>)}<div ref={messagesEnd} />
+      {outgoing.map((item, index) => {
+        const grouped = continuesMessageGroup(item, outgoing[index + 1])
+        return <div key={item.clientMessageId} className={`chat-message mine pending ${grouped ? 'grouped' : ''}`}>
+          <div className="chat-message-content"><p>{item.content}</p></div>
+          <span className="chat-message-meta chat-delivery" role="status">{item.error ? <><small className="chat-delivery-error">{item.error}</small><button type="button" className="account-text-button" onClick={() => { messageInput.current?.focus(); void sendMessage(conversation.id, item.content, item.clientMessageId).catch(() => {}) }}>다시 보내기</button></> : <small className="chat-delivery-pending">전송 중…</small>}{!grouped && <time dateTime={item.createdAt}>{timeLabel(item.createdAt)}</time>}</span>
+        </div>
+      })}<div ref={messagesEnd} />
     </div>
     {showSuggestion && source && <section className="chat-suggestion" aria-label="예약 제안 안내">
       <div><Icon name="calendar" size={18} /><strong>{role === 'owner' ? '예약 요청이 보여요' : '예약 의사를 전달했어요'}</strong><button className="icon-button" type="button" aria-label="예약 제안 안내 닫기" onClick={() => setDismissedId(suggestion.messageId)}><Icon name="close" size={16} /></button></div>
