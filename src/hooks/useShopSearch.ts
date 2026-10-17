@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { CATEGORY_LABELS } from '../data/categories'
 import type { Shop } from '../model'
 import { readCategories, searchStores } from '../lib/customer-api'
 import type { SearchBounds } from '../lib/shop-search'
@@ -6,7 +7,7 @@ import type { SearchBounds } from '../lib/shop-search'
 export function useShopSearch() {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
-  const [categories, setCategories] = useState<{ code: string; label: string }[]>([])
+  const [categories, setCategories] = useState<{ code: string; label: string }[]>(() => Object.entries(CATEGORY_LABELS).map(([code, label]) => ({ code, label })))
   const [expanded, setExpanded] = useState(false)
   const [bounds, setBounds] = useState<SearchBounds | null>(null)
   const [results, setResults] = useState<Shop[]>([])
