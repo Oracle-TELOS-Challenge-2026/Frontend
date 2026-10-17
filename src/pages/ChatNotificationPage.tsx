@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { LoadingIndicator } from '../components/LoadingIndicator'
 import type { useChat } from '../hooks/useChat'
 import type { CurrentUser } from '../lib/auth'
 import { chatNotificationDestination } from '../lib/notification-navigation'
@@ -34,7 +35,7 @@ export function ChatNotificationPage({ roomId, chat, user, onSelectRole, onRefre
     if (onSelectRole(result.role)) navigate(result.path, { replace: true })
   }, [result, onSelectRole, navigate])
   const error = result && ('error' in result ? result.error : accountError)
-  if (!error) return <div className="app-loading" role="status">알림의 대화를 확인하고 있어요…</div>
+  if (!error) return <LoadingIndicator page label="알림의 대화를 확인하고 있어요…" />
   return <div className="page empty-state"><h1>대화를 열 수 없어요</h1><p className="form-error" role="alert">{error}</p>
     <button type="button" className="button secondary" onClick={() => { setChecked(false); setAttempt((value) => value + 1) }}>다시 조회</button>
     <button type="button" className="button secondary" onClick={() => void onRefreshSession()}>로그인 상태 다시 확인</button>

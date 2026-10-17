@@ -1,6 +1,7 @@
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
+import { LoadingIndicator } from './components/LoadingIndicator'
 import { Modal } from './components/Modal'
 import { useAccount } from './hooks/useAccount'
 import { useRecentLocation } from './hooks/useRecentLocation'
@@ -19,7 +20,9 @@ import { ShopDetail } from './pages/customer/ShopDetailPage'
 import { WaitlistPage } from './pages/customer/WaitlistPage'
 import { ReservationsPage } from './pages/customer/ReservationsPage'
 import { OwnerHome } from './pages/owner/HomePage'
+import type { OwnerHomeCache } from './pages/owner/HomePage'
 import { OwnerAlerts } from './pages/owner/AlertsPage'
+import type { OwnerAlertsCache } from './pages/owner/AlertsPage'
 import { OwnerChats } from './pages/owner/ChatsPage'
 import { ChatPage } from './pages/ChatPage'
 import { ChatNotificationPage } from './pages/ChatNotificationPage'
@@ -52,6 +55,8 @@ function App() {
   const vacancyRevision = useVacancyAlerts(user?.id, savedLocation, notify)
   const chat = useChat(user?.id)
   const notifications = useNotifications(user?.id, notify)
+  const ownerCache = useMemo(() => ({ userId: user?.id, timetable: new Map() as OwnerHomeCache, vacancies: new Map() as OwnerAlertsCache }), [user?.id])
+  const reservationRefreshKey = notifications.items.find((item) => item.type.startsWith('RESERVATION_'))?.id ?? ''
   const { refresh: refreshNotifications } = notifications
   const onPush = useCallback(() => { void refreshNotifications() }, [refreshNotifications])
   const push = usePushNotifications(onPush, user?.id)
@@ -128,7 +133,7 @@ function App() {
   }
 
   return <AppLayout toast={visibleToast} hasUnread={hasUnread} notificationCount={notifications.unreadCount} onSwitch={switchRole}>
-    {loading || (user && notificationId) ? <div className="app-loading" role="status">계정 정보를 확인하고 있어요…</div>
+    {loading || (user && notificationId) ? <LoadingIndicator page label="계정 정보를 확인하고 있어요…" />
       : !user ? loginPage ? <Login loading={loading} error={error} onRefresh={refresh} /> : <Navigate to="/login" replace />
       : notification?.kind === 'chat' ? <ChatNotificationPage key={user.id + location.key} roomId={notification.roomId} chat={chat} user={user} onSelectRole={selectRole} onRefreshSession={refresh} accountError={error} fallback={startPath} />
       : loginPage ? <Navigate to={loginDestination} replace />
@@ -151,10 +156,10 @@ function App() {
           <Route path="/customer/profile/preferences" element={<PreferencesPage value={account.preferences} onSave={savePreferences} error={error} />} />
         </Route>
         <Route element={<RoleGate role="owner" account={account} />}>
-          <Route path="/owner" element={<OwnerHome key={location.key} ownerShop={account.shop} />} />
+          <Route path="/owner" element={<OwnerHome key={`${user.id}:${location.key}`} ownerShop={account.shop} cache={ownerCache.timetable} refreshKey={reservationRefreshKey} />} />
           <Route path="/owner/manage" element={<OwnerManage ownerShop={account.shop} onChanged={refreshShop} />} />
           <Route path="/owner/notifications" element={<NotificationsPage notifications={notifications} onOpen={openNotificationPath} />} />
-          <Route path="/owner/alerts" element={<OwnerAlerts key={location.key} ownerShop={account.shop} notify={notify} />} />
+          <Route path="/owner/alerts" element={<OwnerAlerts key={`${user.id}:${location.key}`} ownerShop={account.shop} notify={notify} cache={ownerCache.vacancies} refreshKey={reservationRefreshKey} />} />
           <Route path="/owner/chats" element={<OwnerChats chat={ownerChat} />} />
           <Route path="/owner/chat/:id" element={<ChatPage key={location.pathname} chat={ownerChat} role="owner" userId={user.id} ownerShop={account.shop} />} />
           <Route path="/owner/profile" element={<ProfilePage role="owner" shop={account.shop} preferences={account.preferences} push={push} user={user} onChanged={refreshUser} onLogout={signOut} />} />

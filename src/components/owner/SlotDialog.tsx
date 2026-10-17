@@ -8,7 +8,7 @@ import type { OwnerSlot } from '../../lib/owner-api'
 import { dateLabel, money, timeLabel, todayInSeoul } from '../../lib/format'
 import type { RegisteredShop, StoreService } from '../../types'
 
-export function SlotDialog({ shop, services, day, onCreated, onClose }: { shop: RegisteredShop; services: StoreService[]; day: string; onCreated: (slot: OwnerSlot) => void; onClose: () => void }) {
+export function SlotDialog({ shop, services, day, onCreated, onClose }: { shop: RegisteredShop; services: StoreService[]; day: string; onCreated: (slot: OwnerSlot) => void; onClose: (recheck: boolean) => void }) {
   const activeServices = services.filter((item) => item.active)
   const [serviceId, setServiceId] = useState(activeServices[0]?.id ?? '')
   const [date, setDate] = useState(day < todayInSeoul() ? todayInSeoul() : day)
@@ -39,7 +39,7 @@ export function SlotDialog({ shop, services, day, onCreated, onClose }: { shop: 
     } finally { setPending(false) }
   }
 
-  return <><Modal className="owner-dialog" title="예약 시간 등록" onClose={() => { if (!pending) onClose() }}>
+  return <><Modal className="owner-dialog" title="예약 시간 등록" onClose={() => { if (!pending) onClose(Boolean(error)) }}>
     <p className="owner-dialog-date">고객이 예약할 수 있는 시간을 열어주세요.</p>
     <form className="owner-form" onSubmit={submit}>
       <fieldset className="account-form" disabled={pending || unconfirmed}>

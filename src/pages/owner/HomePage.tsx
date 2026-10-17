@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Icon } from '../../components/Icon'
+import { LoadingIndicator } from '../../components/LoadingIndicator'
 import { OwnerSchedule } from '../../components/owner/Schedule'
 import { SlotDialog } from '../../components/owner/SlotDialog'
 import { dateLabel, money, timeLabel, todayInSeoul } from '../../lib/format'
@@ -12,7 +13,10 @@ import type { RegisteredShop, StoreService } from '../../types'
 const dayAt = (day: string, offset: number) => new Date(Date.parse(`${day}T00:00:00Z`) + offset * 86400000).toISOString().slice(0, 10)
 const weekStartFor = (day: string) => dayAt(day, -((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7))
 
-export function OwnerHome({ ownerShop }: { ownerShop: RegisteredShop | null }) {
+type HomeResult = { key: string; data?: OwnerTimetable; services?: StoreService[]; error?: string }
+export type OwnerHomeCache = Map<string, HomeResult>
+
+export function OwnerHome({ ownerShop, cache, refreshKey = '' }: { ownerShop: RegisteredShop | null; cache: OwnerHomeCache; refreshKey?: string }) {
   const [searchParams] = useSearchParams()
   const today = todayInSeoul()
   const requestedDay = searchParams.get('date') ?? ''
@@ -23,21 +27,46 @@ export function OwnerHome({ ownerShop }: { ownerShop: RegisteredShop | null }) {
   const [revision, setRevision] = useState(0)
   const [registering, setRegistering] = useState(false)
   const [notice, setNotice] = useState('')
-  const [result, setResult] = useState<{ key: string; data?: OwnerTimetable; services?: StoreService[]; error?: string } | null>(null)
+  const [result, setResult] = useState<HomeResult | null>(null)
   const storeId = ownerShop?.id
-  const key = `${storeId}:${selectedDay}:${revision}`
-  const current = result?.key === key ? result : null
+  const key = `${storeId}:${selectedDay}`
+  const current = result?.key === key ? result : cache.get(key)
 
   useEffect(() => {
     if (!storeId) return
-    const controller = new AbortController()
-    Promise.all([readOwnerTimetable(storeId, selectedDay, controller.signal), readStoreServices(storeId, controller.signal)]).then(([data, services]) => {
-      if (!controller.signal.aborted) setResult({ key, data, services })
-    }).catch((error: unknown) => {
-      if (!controller.signal.aborted) setResult({ key, error: error instanceof Error ? error.message : '예약을 불러오지 못했어요.' })
-    })
-    return () => controller.abort()
-  }, [storeId, selectedDay, key])
+    let request: AbortController | undefined
+    let stopped = false
+    async function refresh() {
+      if (stopped || request || document.visibilityState !== 'visible') return
+      const controller = new AbortController()
+      request = controller
+      try {
+        const [data, services] = await Promise.all([readOwnerTimetable(storeId!, selectedDay, controller.signal), readStoreServices(storeId!, controller.signal)])
+        if (controller.signal.aborted || stopped) return
+        const next = { key, data, services }
+        cache.set(key, next)
+        setResult(next)
+      } catch (error) {
+        if (!controller.signal.aborted && !stopped) setResult({ ...cache.get(key), key, error: error instanceof Error ? error.message : '예약을 불러오지 못했어요.' })
+      } finally { if (request === controller) request = undefined }
+    }
+    function resume() {
+      if (document.visibilityState === 'visible') void refresh()
+      else { request?.abort(); request = undefined }
+    }
+    void refresh()
+    // shortcut: 모든 예약 변경이 서버 이벤트로 전달되면 이 주기 조회를 대체한다.
+    const timer = window.setInterval(() => void refresh(), 30000)
+    document.addEventListener('visibilitychange', resume)
+    window.addEventListener('online', resume)
+    return () => {
+      stopped = true
+      request?.abort()
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', resume)
+      window.removeEventListener('online', resume)
+    }
+  }, [storeId, selectedDay, key, revision, refreshKey, cache])
 
   function moveWeek(offset: number) {
     setWeekStart(dayAt(weekStart, offset))
@@ -69,14 +98,15 @@ export function OwnerHome({ ownerShop }: { ownerShop: RegisteredShop | null }) {
           return <button key={day} type="button" className={`owner-day ${day === selectedDay ? 'selected' : ''} ${day === today ? 'is-today' : ''}`} aria-label={dateLabel(`${day}T12:00:00+09:00`)} aria-pressed={day === selectedDay} onClick={() => setSelectedDay(day)}><span>{['월', '화', '수', '목', '금', '토', '일'][index]}</span><strong>{Number(day.slice(8))}</strong></button>
         })}
       </div>
-      {!storeId ? <p className="empty-state">매장을 등록하면 예약 일정을 확인할 수 있어요.</p> : !current ? <p role="status">예약 일정을 불러오는 중이에요.</p> : current.error ? <div role="alert"><p>{current.error}</p><button className="button secondary" type="button" onClick={() => setRevision((value) => value + 1)}>다시 조회</button></div> : current.data && <>
+      {current?.error && <div role="alert"><p>{current.data && '저장된 일정을 표시하고 있어요. '}{current.error}</p><button className="button secondary" type="button" onClick={() => setRevision((value) => value + 1)}>다시 조회</button></div>}
+      {!storeId ? <p className="empty-state">매장을 등록하면 예약 일정을 확인할 수 있어요.</p> : !current ? <LoadingIndicator label="예약 일정을 불러오고 있어요" /> : current.data && <>
         <section className="owner-slots" aria-label="예약 가능한 시간">
           <div className="owner-list-heading"><h2>예약 가능한 시간</h2><button className="button small" type="button" onClick={() => { setNotice(''); setRegistering(true) }}>예약 시간 등록</button></div>
           {current.data.availableSlots.length ? <ul className="owner-slot-list">{current.data.availableSlots.map((slot) => <li key={slot.id}><div><strong>{timeLabel(slot.startAt)} ~ {timeLabel(slot.endAt)}</strong><p>{current.services?.find((service) => service.id === slot.serviceId)?.name ?? '등록된 시술'}</p></div><span>{money(slot.price.payable)}</span></li>)}</ul> : <p className="muted">이 날짜에 예약 가능한 시간이 없어요.<br />시술과 시작 시간을 등록하면 고객이 예약할 수 있어요.</p>}
         </section>
         <OwnerSchedule key={key} storeId={storeId} bookings={current.data.reservations} day={selectedDay} onUpdated={(reservation) => { setRevision((value) => value + 1); setNotice(reservation.status === 'NO_SHOW' ? '노쇼 처리했어요. 남은 시간은 빈자리 알림에서 확인해 주세요.' : '시술 완료로 처리했어요.') }} />
       </>}
-      {registering && ownerShop && current?.services && <SlotDialog shop={ownerShop} services={current.services} day={selectedDay} onClose={() => { setRegistering(false); setRevision((value) => value + 1) }} onCreated={(slot) => {
+      {registering && ownerShop && current?.services && <SlotDialog shop={ownerShop} services={current.services} day={selectedDay} onClose={(recheck) => { setRegistering(false); if (recheck) setRevision((value) => value + 1) }} onCreated={(slot) => {
         const day = todayInSeoul(new Date(slot.startAt))
         setRegistering(false)
         setSelectedDay(day)

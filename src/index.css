@@ -166,13 +166,28 @@ textarea {
   min-height: 100%;
 }
 
-.app-loading {
-  height: 100%;
+.loading-indicator {
   display: grid;
   place-items: center;
+  min-height: 160px;
   padding: 24px;
-  color: var(--muted);
-  font-size: 13px;
+}
+
+.loading-indicator.loading-page {
+  height: 100%;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--line);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: loading-spin .8s linear infinite;
+}
+
+@keyframes loading-spin {
+  to { transform: rotate(360deg); }
 }
 
 .app-header {
@@ -463,6 +478,30 @@ textarea {
   border: 1px solid var(--line);
   color: var(--ink);
   flex-shrink: 0;
+}
+
+.notification-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.refresh-button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.refresh-button:hover:not(:disabled) {
+  background: var(--soft-surface);
+  color: var(--primary-dark);
+}
+
+.refresh-button[aria-busy="true"] svg {
+  animation: loading-spin .8s linear infinite;
 }
 
 .badge {

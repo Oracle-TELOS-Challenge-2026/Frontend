@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../../components/Icon'
 import { Modal } from '../../components/Modal'
+import { LoadingIndicator } from '../../components/LoadingIndicator'
 import { PublishDialog } from '../../components/owner/PublishDialog'
 import { dateLabel, money, timeLabel } from '../../lib/format'
 import { readStoreServices } from '../../lib/customer-api'
@@ -10,7 +11,10 @@ import type { RegisteredShop, StoreService } from '../../types'
 
 const statusLabel = { DRAFT: '미발행', PUBLISHED: '발행 완료', FILLED: '예약 완료', WITHDRAWN: '발행 철회', EXPIRED: '시간 만료' }
 
-export function OwnerAlerts({ ownerShop, notify }: { ownerShop: RegisteredShop | null; notify: (message: string) => void }) {
+type AlertsResult = { key: string; vacancies?: Vacancy[]; services?: StoreService[]; receivedAt?: number; error?: string }
+export type OwnerAlertsCache = Map<string, AlertsResult>
+
+export function OwnerAlerts({ ownerShop, notify, cache, refreshKey = '' }: { ownerShop: RegisteredShop | null; notify: (message: string) => void; cache: OwnerAlertsCache; refreshKey?: string }) {
   const [selected, setSelected] = useState<Vacancy | null>(null)
   const [withdrawing, setWithdrawing] = useState<Vacancy | null>(null)
   const [withdrawError, setWithdrawError] = useState('')
@@ -18,25 +22,65 @@ export function OwnerAlerts({ ownerShop, notify }: { ownerShop: RegisteredShop |
   const busy = useRef(false)
   const requestKey = useRef('')
   const [revision, setRevision] = useState(0)
-  const [result, setResult] = useState<{ key: string; vacancies?: Vacancy[]; services?: StoreService[]; receivedAt?: number; error?: string } | null>(null)
+  const [result, setResult] = useState<AlertsResult | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const storeId = ownerShop?.id
-  const key = `${storeId}:${revision}`
-  const current = result?.key === key ? result : null
+  const key = storeId ?? ''
+  const current = result?.key === key ? result : cache.get(key)
   const alerts = current?.vacancies ?? []
   const services = current?.services ?? []
   const available = alerts.filter((item) => item.status === 'DRAFT' && Date.parse(item.availableUntil) > (current?.receivedAt ?? 0)).length
 
   useEffect(() => {
     if (!storeId) return
-    const controller = new AbortController()
-    Promise.all([readOwnerVacancies(storeId, controller.signal), readStoreServices(storeId, controller.signal)]).then(([vacancies, loadedServices]) => { if (!controller.signal.aborted) setResult({ key, vacancies, services: loadedServices, receivedAt: Date.now() }) }).catch((error: unknown) => {
-      if (!controller.signal.aborted) setResult({ key, error: error instanceof Error ? error.message : '빈자리 내역을 불러오지 못했어요.' })
-    })
-    return () => controller.abort()
-  }, [storeId, key])
+    let request: AbortController | undefined
+    let stopped = false
+    async function refresh() {
+      if (stopped || request || document.visibilityState !== 'visible') return
+      const controller = new AbortController()
+      request = controller
+      setRefreshing(true)
+      try {
+        const [vacancies, loadedServices] = await Promise.all([readOwnerVacancies(storeId!, controller.signal), readStoreServices(storeId!, controller.signal)])
+        if (controller.signal.aborted || stopped) return
+        const next = { key, vacancies, services: loadedServices, receivedAt: Date.now() }
+        cache.set(key, next)
+        setResult(next)
+      } catch (error) {
+        if (!controller.signal.aborted && !stopped) setResult({ ...cache.get(key), key, error: error instanceof Error ? error.message : '빈자리 내역을 불러오지 못했어요.' })
+      } finally {
+        if (request === controller) { request = undefined; if (!stopped) setRefreshing(false) }
+      }
+    }
+    function resume() {
+      if (document.visibilityState === 'visible') void refresh()
+      else { request?.abort(); request = undefined; setRefreshing(false) }
+    }
+    void refresh()
+    const timer = window.setInterval(() => void refresh(), 30000)
+    document.addEventListener('visibilitychange', resume)
+    window.addEventListener('online', resume)
+    return () => {
+      stopped = true
+      request?.abort()
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', resume)
+      window.removeEventListener('online', resume)
+    }
+  }, [storeId, key, revision, refreshKey, cache])
+
+  function updateVacancy(vacancy: Vacancy) {
+    const previous = cache.get(key)
+    if (previous) {
+      const next = { ...previous, vacancies: previous.vacancies?.map((item) => item.id === vacancy.id ? vacancy : item) }
+      cache.set(key, next)
+      setResult(next)
+    }
+    setRevision((value) => value + 1)
+  }
 
   function published(vacancy: Vacancy) {
-    setResult((previous) => previous?.key === key ? { ...previous, vacancies: previous.vacancies?.map((item) => item.id === vacancy.id ? vacancy : item) } : previous)
+    updateVacancy(vacancy)
     setSelected(null)
     notify('빈자리를 발행했어요. 조건에 맞는 고객에게 알림을 준비하고 있어요.')
   }
@@ -54,7 +98,7 @@ export function OwnerAlerts({ ownerShop, notify }: { ownerShop: RegisteredShop |
     setWithdrawError('')
     try {
       const vacancy = await withdrawVacancy(withdrawing, requestKey.current)
-      setResult((previous) => previous?.key === key ? { ...previous, vacancies: previous.vacancies?.map((item) => item.id === vacancy.id ? vacancy : item) } : previous)
+      updateVacancy(vacancy)
       setWithdrawing(null)
       notify('빈자리 발행을 철회했어요.')
     } catch (cause) { setWithdrawError(cause instanceof Error ? cause.message : '빈자리 발행을 철회하지 못했어요.') }
@@ -64,9 +108,10 @@ export function OwnerAlerts({ ownerShop, notify }: { ownerShop: RegisteredShop |
   return <div className="page owner-page">
     <p className="eyebrow">빈 시간도, 새로운 기회로</p>
     <h1 className="page-heading">빈자리 알림</h1>
-    {!storeId ? <p className="empty-state">매장을 등록하면 빈자리 알림을 확인할 수 있어요.</p> : !current ? <p role="status">빈자리 내역을 불러오는 중이에요.</p> : current.error ? <div role="alert"><p>{current.error}</p><button className="button secondary" type="button" onClick={() => setRevision((value) => value + 1)}>다시 조회</button></div> : <>
+    {current?.error && <div role="alert"><p>{current.vacancies && '저장된 내역을 표시하고 있어요. '}{current.error}</p><button className="button secondary" type="button" onClick={() => setRevision((value) => value + 1)}>다시 조회</button></div>}
+    {!storeId ? <p className="empty-state">매장을 등록하면 빈자리 알림을 확인할 수 있어요.</p> : !current ? <LoadingIndicator label="빈자리 내역을 불러오고 있어요" /> : current.vacancies && <>
       <div className="owner-info"><Icon name="sparkle" /><div><strong>{available > 0 ? `${available}개의 빈자리가 기다리고 있어요` : '발행을 기다리는 빈자리가 없어요'}</strong><p>취소된 시간에 특별한 가격을 더해보세요.<br />이 시간을 기다리던 고객과 만날 수 있어요.</p></div></div>
-      <div className="owner-list-heading"><h2>취소 · 노쇼 내역 <span>{alerts.length}</span></h2><button className="button secondary small" type="button" onClick={() => setRevision((value) => value + 1)}>새로고침</button></div>
+      <div className="owner-list-heading"><h2>취소 · 노쇼 내역 <span>{alerts.length}</span></h2><button className="icon-button refresh-button" type="button" aria-label="새로고침" title="새로고침" aria-busy={refreshing} disabled={refreshing} onClick={() => setRevision((value) => value + 1)}><Icon name="refresh" size={20} /></button></div>
       <div className="owner-alert-list">
         {alerts.map((alert) => <article className="owner-alert-card" key={alert.id}>
           <div className="owner-alert-top"><span className={`badge ${alert.status === 'DRAFT' ? 'coral' : ''}`}>{alert.reason === 'NO_SHOW' ? '노쇼 접수' : '예약 취소'}</span><time dateTime={alert.occurredAt}>{dateLabel(alert.occurredAt)} {timeLabel(alert.occurredAt)} 접수</time></div>
