@@ -147,7 +147,7 @@
   gap: 9px;
   background: var(--surface);
   border-top: 1px solid var(--line);
-  padding: 13px 18px max(13px,env(safe-area-inset-bottom));
+  padding: 13px 18px;
 }
 
 .chat-composer input::placeholder {

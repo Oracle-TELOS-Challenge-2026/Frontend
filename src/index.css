@@ -117,14 +117,15 @@ textarea {
   display: flex;
   align-items: stretch;
   justify-content: center;
-  min-height: 100svh;
+  min-height: min(100svh, var(--app-height, 100svh));
   gap: 100px;
   padding: 0 40px;
 }
 
 .app-frame {
   width: 480px;
-  height: 100dvh;
+  height: min(100dvh, var(--app-height, 100dvh));
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   max-height: 1100px;
   position: relative;
   display: flex;
@@ -273,7 +274,7 @@ textarea {
 
 .bottom-nav {
   height: 77px;
-  padding: 8px 16px max(8px,env(safe-area-inset-bottom));
+  padding: 8px 16px;
   display: flex;
   justify-content: space-around;
   border-top: 1px solid var(--line);
@@ -550,7 +551,7 @@ textarea {
 
 .toast {
   position: absolute;
-  bottom: 94px;
+  bottom: calc(94px + env(safe-area-inset-bottom));
   left: 20px;
   right: 20px;
   z-index: 100;
