@@ -1,6 +1,6 @@
 import { apiId, BackendApiError, mutateBackendApi, requestBackendApi } from './backend-api.ts'
 import { readItems } from './customer-api.ts'
-import { discountPrice, validWaitPreference } from './booking.ts'
+import { discountPrice } from './booking.ts'
 import { validOpeningHours, WEEK_DAYS } from './account.ts'
 import { CATEGORY_LABELS } from '../data/categories.ts'
 import type { DiscountMode, RegisteredShop, Reservation, StoreService } from '../types.ts'
@@ -82,24 +82,6 @@ function parseOwnerSlot(value: unknown): OwnerSlot {
   if (!isObject(value) || !['id', 'storeId', 'serviceId'].every((key) => typeof value[key] === 'string' && value[key] !== '') || !validTime(value.startAt) || !validTime(value.endAt) || Date.parse(value.endAt) <= Date.parse(value.startAt) || !isObject(value.price) || !nonnegativeInteger(value.price.original) || !nonnegativeInteger(value.price.payable)) throw invalidResponse()
   if (value.instantBooking != null && typeof value.instantBooking !== 'boolean') throw invalidResponse()
   return { ...value, instantBooking: value.instantBooking ?? true } as unknown as OwnerSlot
-}
-
-export function ownerSlotInput(shop: RegisteredShop, service: StoreService, date: string, time: string, now = Date.now()) {
-  if (!service.active || !service.id || !Number.isSafeInteger(service.durationMinutes) || service.durationMinutes < 15 || service.durationMinutes > 480 || service.durationMinutes % 5 !== 0) throw new Error('현재 제공 중인 시술을 선택해 주세요. 소요 시간은 15~480분, 5분 단위여야 해요.')
-  if (!validWaitPreference(date, time, now)) throw new Error('현재보다 미래인 날짜와 시간을 선택해 주세요.')
-  const day = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][new Date(`${date}T00:00:00Z`).getUTCDay()]
-  const hours = shop.openingHours.find((item) => item.dayOfWeek === day)
-  const startAt = `${date}T${time}:00+09:00`
-  const start = Date.parse(startAt)
-  if (!hours || hours.closed || !hours.opensAt || !hours.closesAt || !(start >= Date.parse(`${date}T${hours.opensAt}:00+09:00`) && start + service.durationMinutes * 60000 <= Date.parse(`${date}T${hours.closesAt}:00+09:00`))) throw new Error('시술이 시작부터 종료까지 매장 영업시간 안에 들어가도록 선택해 주세요.')
-  return { serviceId: service.id, startAt }
-}
-
-export async function createOwnerSlot(storeId: string, input: ReturnType<typeof ownerSlotInput>, idempotencyKey: string): Promise<OwnerSlot> {
-  const { data } = await mutateBackendApi(`/api/v1/owner/stores/${apiId(storeId)}/slots`, { body: input, idempotencyKey })
-  const slot = parseOwnerSlot(data)
-  if (slot.storeId !== storeId || slot.serviceId !== input.serviceId || Date.parse(slot.startAt) !== Date.parse(input.startAt)) throw invalidResponse()
-  return slot
 }
 
 function parseReservation(value: unknown): OwnerReservation {

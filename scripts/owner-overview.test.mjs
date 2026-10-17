@@ -38,7 +38,7 @@ const button = (tree, label) => find(tree, (node) => node.type === 'button' && (
 const summary = (tree) => nodes(find(tree, (node) => node.props?.className === 'owner-summary')).filter((node) => node.type === 'strong').map(text)
 
 function mount({ page = 'Home', cache = new Map(), visibility = 'visible', read = async (_, date) => timetable(date) } = {}) {
-  const slots = [], effects = [], timers = new Map(), calls = []
+  const slots = [], effects = [], timers = new Map(), calls = [], serviceCalls = []
   let cursor = 0, clock = 0, nextTimer = 0
   let props = { ownerShop: shop, cache, refreshKey: '', notify() {} }
   const document = Object.assign(new EventTarget(), { visibilityState: visibility })
@@ -69,12 +69,12 @@ function mount({ page = 'Home', cache = new Map(), visibility = 'visible', read 
       }
       if (name === 'react-router-dom') return { useSearchParams: () => [new URLSearchParams()] }
       if (name === '../../lib/format') return { dateLabel: (value) => value.slice(0, 10), timeLabel: (value) => value.slice(11, 16), money: String, todayInSeoul: (value) => value ? value.toISOString().slice(0, 10) : today }
-      if (name === '../../lib/customer-api') return { readStoreServices: async () => [{ id: 'service-a', name: '젤 네일', active: true }] }
+      if (name === '../../lib/customer-api') return { readStoreServices: async (...args) => { serviceCalls.push(args); return [{ id: 'service-a', name: '젤 네일', active: true }] } }
       if (name === '../../lib/owner-api') return {
         readOwnerTimetable(...args) { calls.push(args); return read(...args) },
         readOwnerVacancies(...args) { calls.push(args); return read(...args) },
       }
-      const component = { '../../components/Icon': 'Icon', '../../components/LoadingIndicator': 'LoadingIndicator', '../../components/Modal': 'Modal', '../../components/owner/Schedule': 'OwnerSchedule', '../../components/owner/SlotDialog': 'SlotDialog', '../../components/owner/ReservationRequests': 'ReservationRequests', '../../components/owner/PublishDialog': 'PublishDialog' }[name]
+      const component = { '../../components/Icon': 'Icon', '../../components/LoadingIndicator': 'LoadingIndicator', '../../components/Modal': 'Modal', '../../components/owner/Schedule': 'OwnerSchedule', '../../components/owner/ReservationRequests': 'ReservationRequests', '../../components/owner/PublishDialog': 'PublishDialog' }[name]
       if (component) return { [component]: component }
       throw new Error(`Unexpected import: ${name}`)
     },
@@ -87,7 +87,7 @@ function mount({ page = 'Home', cache = new Map(), visibility = 'visible', read 
   }
   render()
   return {
-    render, calls, cache, timers,
+    render, calls, serviceCalls, cache, timers,
     unmount: () => slots.forEach((slot) => slot?.cleanup?.()),
     visibility(value) { document.visibilityState = value; document.dispatchEvent(new Event('visibilitychange')) },
     online() { window.dispatchEvent(new Event('online')) },
@@ -103,15 +103,18 @@ function mount({ page = 'Home', cache = new Map(), visibility = 'visible', read 
   }
 }
 
-test('closing an untouched slot dialog preserves the summary without another request', async () => {
-  const app = mount()
+test('home shows reservations without manual slot registration or a service-list request', async () => {
+  const reservations = [{ id: 'reservation-a', status: 'CONFIRMED', startAt: `${today}T10:00:00+09:00`, endAt: `${today}T11:00:00+09:00` }]
+  const app = mount({ read: async () => ({ ...timetable(), reservations }) })
   await tick()
-  assert.deepEqual(summary(app.render()), ['2건', '2건'])
-  button(app.render(), '예약 시간 등록').props.onClick()
-  find(app.render(), (node) => node.type === 'SlotDialog').props.onClose(false)
-  assert.deepEqual(summary(app.render()), ['2건', '2건'])
-  await tick()
+  const tree = app.render()
+  assert.deepEqual(summary(tree), ['2건', '2건'])
+  assert.equal(find(tree, (node) => node.type === 'OwnerSchedule').props.bookings, reservations)
+  assert.doesNotMatch(text(tree), /예약 시간 등록|시술과 시작 시간을 등록/)
+  assert.match(text(tree), /확정된 예약은 시간표에 자동으로 반영/)
+  assert.match(text(tree), /취소된 시간은 빈자리 알림/)
   assert.equal(app.calls.length, 1)
+  assert.equal(app.serviceCalls.length, 0)
   app.unmount()
 })
 
@@ -129,23 +132,22 @@ test('home passes refreshed shop opening hours to the existing timetable', async
   app.unmount()
 })
 
-test('saved and uncertain slot results revalidate without clearing the current summary', async () => {
+test('reservation confirmation and conflicts revalidate without clearing the current summary', async () => {
   const pending = deferred()
   let reads = 0
   const app = mount({ read: (_, date) => ++reads === 1 ? Promise.resolve(timetable(date)) : pending.promise })
   await tick()
   const scheduleKey = find(app.render(), (node) => node.type === 'OwnerSchedule').key
-  button(app.render(), '예약 시간 등록').props.onClick()
-  find(app.render(), (node) => node.type === 'SlotDialog').props.onCreated({ startAt: `${today}T10:00:00+09:00`, endAt: `${today}T11:00:00+09:00` })
+  find(app.render(), (node) => node.type === 'ReservationRequests').props.onUpdated({ status: 'CONFIRMED' })
   assert.deepEqual(summary(app.render()), ['2건', '2건'])
+  assert.match(text(app.render()), /예약을 확정했어요/)
   assert.equal(find(app.render(), (node) => node.type === 'OwnerSchedule').key, scheduleKey)
   await tick()
   assert.equal(app.calls.length, 2)
   pending.resolve(timetable(today, 3))
   await tick()
   assert.deepEqual(summary(app.render()), ['3건', '3건'])
-  button(app.render(), '예약 시간 등록').props.onClick()
-  find(app.render(), (node) => node.type === 'SlotDialog').props.onClose(true)
+  find(app.render(), (node) => node.type === 'OwnerSchedule').props.onConflict()
   assert.deepEqual(summary(app.render()), ['3건', '3건'])
   await tick()
   assert.equal(app.calls.length, 3)

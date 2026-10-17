@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createOwnerService, createOwnerSlot, ownerSlotInput, parseVacancy, publishVacancy, readOwnerReservation, readOwnerReservationRequests, readOwnerStoreSettings, readOwnerTimetable, readOwnerVacancies, updateOwnerReservationStatus, updateOwnerService, updateOwnerStore, vacancyPublishInput, withdrawVacancy } from '../src/lib/owner-api.ts'
+import { createOwnerService, parseVacancy, publishVacancy, readOwnerReservation, readOwnerReservationRequests, readOwnerStoreSettings, readOwnerTimetable, readOwnerVacancies, updateOwnerReservationStatus, updateOwnerService, updateOwnerStore, vacancyPublishInput, withdrawVacancy } from '../src/lib/owner-api.ts'
 
 const success = (data) => Response.json({ resultType: 'SUCCESS', success: { data }, error: null })
 const vacancy = { id: 'vacancy_1', storeId: 'store_1', resourceId: 'staff_1', reason: 'CANCELLATION', status: 'DRAFT', availableFrom: '2026-10-20T17:00:00+09:00', availableUntil: '2026-10-20T18:00:00+09:00', originalServiceId: 'service_1', originalPrice: 60000, publishedAt: null, occurredAt: '2026-10-20T12:00:00+09:00', version: 3 }
@@ -8,7 +8,6 @@ const service = { id: 'service_2', name: '젤 네일', category: 'NAIL', duratio
 const now = Date.parse('2026-10-20T16:00:00+09:00')
 const booking = { id: 'reservation_1', resourceId: 'staff_1', status: 'NO_SHOW', startAt: '2026-10-20T17:00:00+09:00', endAt: '2026-10-20T18:00:00+09:00', customer: { id: 'customer_1', displayName: '고객' }, service: { id: 'service_1', name: '젤 네일', durationMinutes: 60 }, price: { original: 60000, payable: 50000 } }
 const slot = { id: 'slot_1', storeId: 'store/1', serviceId: service.id, startAt: '2026-10-20T17:30:00+09:00', endAt: '2026-10-20T18:00:00+09:00', price: { original: 50000, payable: 50000 } }
-const shop = { openingHours: [{ dayOfWeek: 'TUE', opensAt: '09:00', closesAt: '18:00', closed: false }] }
 
 test('owner policy defaults are compatible and manual publication sends false explicitly', async (t) => {
   assert.equal(parseVacancy(vacancy).instantBooking, true)
@@ -139,49 +138,6 @@ test('publication sends CSRF, stable idempotency key and version; server conflic
   assert.deepEqual(await publishVacancy(vacancy, input, 'retry-key'), { ...published, instantBooking: true })
   conflict = true
   await assert.rejects(publishVacancy(vacancy, input, 'retry-key'), { code: 'VERSION_CONFLICT', status: 409 })
-})
-
-test('slot input requires a future Seoul time and the full active service within opening hours', () => {
-  assert.deepEqual(ownerSlotInput(shop, service, '2026-10-20', '17:30', now), { serviceId: service.id, startAt: slot.startAt })
-  assert.equal(ownerSlotInput(shop, service, '2026-10-20', '09:00', Date.parse('2026-10-19T23:00:00Z')).startAt, '2026-10-20T09:00:00+09:00')
-  for (const [selectedShop, selectedService, date, time] of [
-    [shop, service, '2026-10-20', '16:00'],
-    [shop, service, '2026-10-20', '15:59'],
-    [shop, service, '2026-10-20', '17:31'],
-    [shop, service, '2026-10-20', '24:00'],
-    [shop, service, '2026-10-20', '17:60'],
-    [shop, service, '2026-02-30', '17:00'],
-    [shop, service, '2026-10-21', '17:00'],
-    [{ openingHours: [{ ...shop.openingHours[0], closed: true }] }, service, '2026-10-20', '17:00'],
-    [shop, { ...service, active: false }, '2026-10-20', '17:00'],
-    ...[0, 10, 16, 485, NaN].map((durationMinutes) => [shop, { ...service, durationMinutes }, '2026-10-20', '17:00']),
-  ]) assert.throws(() => ownerSlotInput(selectedShop, selectedService, date, time, now))
-  assert.throws(() => ownerSlotInput(shop, service, '2026-10-20', '08:59', Date.parse('2026-10-19T00:00:00Z')))
-})
-
-test('slot registration sends only service and start, preserves the retry key and rejects conflicts or mismatched responses', async (t) => {
-  const input = ownerSlotInput(shop, service, '2026-10-20', '17:30', now)
-  let outcome = 'network'
-  const keys = []
-  t.mock.method(globalThis, 'fetch', async (url, options) => {
-    if (new URL(url, 'https://frontend-oracle.vercel.app').pathname === '/api/v1/auth/csrf') return success({ csrfToken: 'csrf-token' })
-    assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').pathname, '/api/v1/owner/stores/store%2F1/slots')
-    assert.equal(options.method, 'POST')
-    assert.equal(options.headers['X-CSRF-Token'], 'csrf-token')
-    keys.push(options.headers['Idempotency-Key'])
-    assert.deepEqual(JSON.parse(options.body), input)
-    if (outcome === 'network') throw new TypeError('connection lost')
-    if (outcome === 'conflict') return Response.json({ resultType: 'FAILURE', error: { code: 'SLOT_CONFLICT' } }, { status: 409 })
-    return success(outcome === 'invalid' ? { ...slot, serviceId: 'other-service' } : slot)
-  })
-  await assert.rejects(createOwnerSlot('store/1', input, 'same-key'), { code: 'NETWORK_ERROR' })
-  outcome = 'success'
-  assert.deepEqual(await createOwnerSlot('store/1', input, 'same-key'), { ...slot, instantBooking: true })
-  assert.deepEqual(keys, ['same-key', 'same-key'])
-  outcome = 'conflict'
-  await assert.rejects(createOwnerSlot('store/1', input, 'new-key'), { status: 409 })
-  outcome = 'invalid'
-  await assert.rejects(createOwnerSlot('store/1', input, 'new-key'), { code: 'INVALID_RESPONSE' })
 })
 
 test('timetable rejects malformed available slots instead of showing a successful empty list', async (t) => {

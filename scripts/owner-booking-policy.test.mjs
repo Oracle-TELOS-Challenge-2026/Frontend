@@ -7,7 +7,7 @@ import { discountPrice } from '../src/lib/booking.ts'
 import { vacancyPublishInput } from '../src/lib/owner-api.ts'
 import { dateLabel, money, timeLabel, todayInSeoul } from '../src/lib/format.ts'
 
-const compiled = Object.fromEntries(['PublishDialog', 'ReservationRequests', 'Schedule'].map((name) => [name, ts.transpileModule(readFileSync(new URL(`../src/components/owner/${name}.tsx`, import.meta.url), 'utf8'), {
+const compiled = Object.fromEntries(Object.entries({ PublishDialog: 'owner/PublishDialog', ReservationRequests: 'owner/ReservationRequests', Schedule: 'owner/Schedule', TimetableGrid: 'TimetableGrid' }).map(([name, path]) => [name, ts.transpileModule(readFileSync(new URL(`../src/components/${path}.tsx`, import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
 }).outputText]))
 const tick = () => new Promise((resolve) => setImmediate(resolve))
@@ -24,8 +24,8 @@ function mount(name, initialProps, api = {}) {
   let cursor = 0, key = 0, props = initialProps
   const document = Object.assign(new EventTarget(), { visibilityState: 'visible' })
   const window = new EventTarget()
-  const jsx = (type, props, key) => ({ type, props, key }), exports = {}
-  runInContext(compiled[name], createContext({
+  const jsx = (type, props, key) => typeof type === 'function' ? type(props) : ({ type, props, key }), exports = {}
+  const context = {
     exports, Error, AbortController, document, window, crypto: { randomUUID: () => `key-${++key}` },
     require(module) {
       if (module === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'Fragment' }
@@ -46,12 +46,15 @@ function mount(name, initialProps, api = {}) {
       if (module === '../Modal') return { Modal: 'Modal' }
       if (module === '../Icon') return { Icon: 'Icon' }
       if (module === './ReservationDialog') return { OwnerReservationDialog: 'OwnerReservationDialog' }
-      if (module === '../../lib/format') return { dateLabel, timeLabel, money, todayInSeoul }
+      if (module === '../../lib/format' || module === '../lib/format') return { dateLabel, timeLabel, money, todayInSeoul }
+      if (module === '../TimetableGrid') return exports
       if (module === '../../lib/booking') return { discountPrice }
       if (module === '../../lib/owner-api') return { vacancyPublishInput, ...api }
       throw new Error(`Unexpected import: ${module}`)
     },
-  }))
+  }
+  runInContext(compiled.TimetableGrid, createContext({ ...context }))
+  runInContext(compiled[name], createContext({ ...context }))
   return {
     render(next = {}) {
       props = { ...props, ...next }; cursor = 0

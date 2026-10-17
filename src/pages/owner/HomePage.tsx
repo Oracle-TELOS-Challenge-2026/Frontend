@@ -4,17 +4,15 @@ import { Icon } from '../../components/Icon'
 import { LoadingIndicator } from '../../components/LoadingIndicator'
 import { OwnerSchedule } from '../../components/owner/Schedule'
 import { ReservationRequests } from '../../components/owner/ReservationRequests'
-import { SlotDialog } from '../../components/owner/SlotDialog'
-import { dateLabel, money, timeLabel, todayInSeoul } from '../../lib/format'
+import { dateLabel, todayInSeoul } from '../../lib/format'
 import { readOwnerTimetable } from '../../lib/owner-api'
-import { readStoreServices } from '../../lib/customer-api'
 import type { OwnerReservationDetail, OwnerTimetable } from '../../lib/owner-api'
-import type { RegisteredShop, StoreService } from '../../types'
+import type { RegisteredShop } from '../../types'
 
 const dayAt = (day: string, offset: number) => new Date(Date.parse(`${day}T00:00:00Z`) + offset * 86400000).toISOString().slice(0, 10)
 const weekStartFor = (day: string) => dayAt(day, -((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7))
 
-type HomeResult = { key: string; data?: OwnerTimetable; services?: StoreService[]; error?: string }
+type HomeResult = { key: string; data?: OwnerTimetable; error?: string }
 export type OwnerHomeCache = Map<string, HomeResult>
 
 export function OwnerHome({ ownerShop, cache, refreshKey = '' }: { ownerShop: RegisteredShop | null; cache: OwnerHomeCache; refreshKey?: string }) {
@@ -26,7 +24,6 @@ export function OwnerHome({ ownerShop, cache, refreshKey = '' }: { ownerShop: Re
   const [selectedDay, setSelectedDay] = useState(initialDay)
   const [weekStart, setWeekStart] = useState(() => weekStartFor(initialDay))
   const [revision, setRevision] = useState(0)
-  const [registering, setRegistering] = useState(false)
   const [notice, setNotice] = useState('')
   const [result, setResult] = useState<HomeResult | null>(null)
   const storeId = ownerShop?.id
@@ -42,9 +39,9 @@ export function OwnerHome({ ownerShop, cache, refreshKey = '' }: { ownerShop: Re
       const controller = new AbortController()
       request = controller
       try {
-        const [data, services] = await Promise.all([readOwnerTimetable(storeId!, selectedDay, controller.signal), readStoreServices(storeId!, controller.signal)])
+        const data = await readOwnerTimetable(storeId!, selectedDay, controller.signal)
         if (controller.signal.aborted || stopped) return
-        const next = { key, data, services }
+        const next = { key, data }
         cache.set(key, next)
         setResult(next)
       } catch (error) {
@@ -107,20 +104,9 @@ export function OwnerHome({ ownerShop, cache, refreshKey = '' }: { ownerShop: Re
       </div>
       {current?.error && <div role="alert"><p>{current.data && '저장된 일정을 표시하고 있어요. '}{current.error}</p><button className="button secondary" type="button" onClick={() => setRevision((value) => value + 1)}>다시 조회</button></div>}
       {!storeId ? <p className="empty-state">매장을 등록하면 예약 일정을 확인할 수 있어요.</p> : !current ? <LoadingIndicator label="예약 일정을 불러오고 있어요" /> : current.data && ownerShop && <>
-        <section className="owner-slots" aria-label="예약 가능한 시간">
-          <div className="owner-list-heading"><h2>예약 가능한 시간</h2><button className="button small" type="button" onClick={() => { setNotice(''); setRegistering(true) }}>예약 시간 등록</button></div>
-          {current.data.availableSlots.length ? <ul className="owner-slot-list">{current.data.availableSlots.map((slot) => <li key={slot.id}><div><strong>{timeLabel(slot.startAt)} ~ {timeLabel(slot.endAt)}</strong><p>{current.services?.find((service) => service.id === slot.serviceId)?.name ?? '등록된 시술'} · {slot.instantBooking === false ? '사장님 선택' : '즉시확정'}</p></div><span>{money(slot.price.payable)}</span></li>)}</ul> : <p className="muted">이 날짜에 예약 가능한 시간이 없어요.<br />시술과 시작 시간을 등록하면 고객이 예약할 수 있어요.</p>}
-        </section>
+        <p className="muted">설정한 영업시간 안에서 예약을 받을 수 있고, 확정된 예약은 시간표에 자동으로 반영돼요. 취소된 시간은 빈자리 알림에서 알려보세요.</p>
         <OwnerSchedule key={key} storeId={storeId} bookings={current.data.reservations} day={selectedDay} openingHours={ownerShop.openingHours} onUpdated={reservationUpdated} onConflict={() => setRevision((value) => value + 1)} />
       </>}
-      {registering && ownerShop && current?.services && <SlotDialog shop={ownerShop} services={current.services} day={selectedDay} onClose={(recheck) => { setRegistering(false); if (recheck) setRevision((value) => value + 1) }} onCreated={(slot) => {
-        const day = todayInSeoul(new Date(slot.startAt))
-        setRegistering(false)
-        setSelectedDay(day)
-        setWeekStart(weekStartFor(day))
-        setRevision((value) => value + 1)
-        setNotice(`${dateLabel(slot.startAt)} ${timeLabel(slot.startAt)} ~ ${timeLabel(slot.endAt)} 예약 시간을 등록했어요.`)
-      }} />}
     </div>
   )
 }
