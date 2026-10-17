@@ -7,6 +7,7 @@ import { useKakaoMap } from '../../hooks/useKakaoMap'
 import { getAvailableSlots } from '../../model'
 import type { Shop } from '../../model'
 import { hasSearchAreaChanged, type SearchBounds } from '../../lib/shop-search'
+import type { Place } from '../../lib/kakao-map'
 import type { KakaoMap } from '../../types/kakao-map'
 
 function readBounds(map: KakaoMap): SearchBounds {
@@ -17,6 +18,7 @@ function readBounds(map: KakaoMap): SearchBounds {
 }
 
 interface ShopMapProps {
+  place: Place | null
   shops: Shop[]
   expanded: boolean
   selectedId?: string
@@ -24,7 +26,7 @@ interface ShopMapProps {
   onSearchArea: (bounds: SearchBounds) => void
 }
 
-export function ShopMap({ shops, expanded, selectedId, onSelect, onSearchArea }: ShopMapProps) {
+export function ShopMap({ place, shops, expanded, selectedId, onSelect, onSearchArea }: ShopMapProps) {
   const { containerRef, instance, status, retry } = useKakaoMap()
   const [areaChanged, setAreaChanged] = useState(false)
   const searchedArea = useRef<{ bounds: SearchBounds; level: number } | null>(null)
@@ -60,10 +62,15 @@ export function ShopMap({ shops, expanded, selectedId, onSelect, onSearchArea }:
 
   useEffect(() => {
     if (!instance) return
+    if (place) {
+      instance.map.relayout()
+      instance.map.setLevel(5)
+      instance.map.setCenter(new instance.maps.LatLng(place.latitude, place.longitude))
+    }
     const bounds = readBounds(instance.map)
     searchedArea.current = { bounds, level: instance.map.getLevel() }
     onSearchArea(bounds)
-  }, [instance, onSearchArea])
+  }, [instance, onSearchArea, place])
 
   useEffect(() => {
     const shop = shops.find((item) => item.id === selectedId)

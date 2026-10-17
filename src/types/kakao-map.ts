@@ -23,6 +23,9 @@ export interface KakaoMaps {
   load(callback: () => void): void
   services: {
     Status: { OK: string; ZERO_RESULT: string; ERROR: string }
+    Places: new () => {
+      keywordSearch(query: string, callback: (results: { id: string; place_name: string; address_name: string; x: string; y: string }[], status: string) => void, options?: { size: number }): void
+    }
     Geocoder: new () => {
       addressSearch(address: string, callback: (results: { x: string; y: string; road_address: { address_name: string } | null }[], status: string) => void, options?: { size: number }): void
     }
