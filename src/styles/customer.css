@@ -154,16 +154,3 @@
 .customer-dialog .wait-consent input { width: auto; min-height: auto; padding: 0; margin: 0; }
 .intent-dialog textarea { display: block; width: 100%; min-height: 90px; resize: vertical; border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 8px 0 12px; font: inherit; }
 .intent-dialog p { font-size: 12px; line-height: 1.7; }
-
-.place-search { position: relative; }
-.place-search-results { position: absolute; top: calc(100% + 6px); left: 0; right: 0; max-height: 45dvh; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 8px 24px #0002; }
-.place-search-heading { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; font-size: 13px; }
-.place-search-results p { padding: 0 12px 12px; color: var(--muted); font-size: 13px; }
-.place-search-results ul { margin: 0; padding: 0; list-style: none; }
-.place-search-results li button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
-.place-search-results li button:hover, .place-search-results li button:focus-visible { background: var(--soft-surface); }
-.place-search-results li svg { flex-shrink: 0; }
-.place-search-results li span { min-width: 0; }
-.place-search-results li strong, .place-search-results li small { display: block; overflow-wrap: anywhere; }
-.place-search-results li strong { font-size: 14px; }
-.place-search-results li small { margin-top: 3px; color: var(--muted); font-size: 12px; }

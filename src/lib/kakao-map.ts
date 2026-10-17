@@ -76,34 +76,3 @@ export async function searchRoadAddresses(query: string, appKey: string): Promis
     }
   })
 }
-
-export interface Place {
-  id: string
-  name: string
-  address: string
-  latitude: number
-  longitude: number
-}
-
-export async function searchPlaces(query: string, appKey: string): Promise<Place[]> {
-  if (!query.trim()) return []
-  if (!appKey.trim()) throw new Error('장소 검색 설정이 없어 검색할 수 없어요.')
-  const maps = await loadKakaoMaps(appKey).catch(() => { throw new Error('장소 검색을 불러오지 못했어요. 다시 시도해 주세요.') })
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('장소 검색이 지연되고 있어요. 다시 시도해 주세요.')), 15000)
-    try {
-      new maps.services.Places().keywordSearch(query.trim(), (results, status) => {
-        clearTimeout(timer)
-        if (status === maps.services.Status.ZERO_RESULT) { resolve([]); return }
-        if (status !== maps.services.Status.OK) { reject(new Error('장소를 검색하지 못했어요. 다시 시도해 주세요.')); return }
-        if (!Array.isArray(results)) { reject(new Error('장소 검색 결과를 확인하지 못했어요.')); return }
-        const places = results.filter((item) => item && typeof item.id === 'string' && item.id && typeof item.place_name === 'string' && item.place_name.trim() && typeof item.address_name === 'string' && typeof item.x === 'string' && item.x.trim() && typeof item.y === 'string' && item.y.trim()).map((item) => ({ id: item.id, name: item.place_name, address: item.address_name, latitude: Number(item.y), longitude: Number(item.x) }))
-        if (places.some((item) => !Number.isFinite(item.latitude) || Math.abs(item.latitude) > 90 || !Number.isFinite(item.longitude) || Math.abs(item.longitude) > 180)) { reject(new Error('장소의 위치를 확인하지 못했어요.')); return }
-        resolve(places)
-      }, { size: 5 })
-    } catch {
-      clearTimeout(timer)
-      reject(new Error('장소 검색을 시작하지 못했어요. 다시 시도해 주세요.'))
-    }
-  })
-}

@@ -20,7 +20,7 @@ const searchButton = (tree) => elements(tree).find((node) => node.type === 'butt
 const marker = (tree) => elements(tree).find((node) => node.type === 'ShopMapMarker')
 
 function mount() {
-  const slots = [], effects = [], searches = [], selections = [], centers = []
+  const slots = [], effects = [], searches = [], selections = [], centers = [], fitted = []
   const listeners = new Map()
   let cursor = 0, level = 5, relayouts = 0
   let bounds = { ...initialBounds }
@@ -29,10 +29,16 @@ function mount() {
     getLat() { return this.latitude }
     getLng() { return this.longitude }
   }
+  class LatLngBounds {
+    points = []
+    extend(point) { this.points.push([point.getLat(), point.getLng()]) }
+  }
   const map = {
     getBounds: () => ({ getSouthWest: () => new LatLng(bounds.south, bounds.west), getNorthEast: () => new LatLng(bounds.north, bounds.east) }),
     getCenter: () => new LatLng((bounds.south + bounds.north) / 2, (bounds.west + bounds.east) / 2),
     getLevel: () => level,
+    setLevel: (value) => { level = value },
+    setBounds: (value) => fitted.push(value.points),
     relayout: () => { relayouts++ },
     setCenter(position) {
       const center = map.getCenter()
@@ -41,12 +47,12 @@ function mount() {
       centers.push([position.getLat(), position.getLng()])
     },
   }
-  const instance = { map, maps: { LatLng, event: {
+  const instance = { map, maps: { LatLng, LatLngBounds, event: {
     addListener(_map, type, handler) { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(handler) },
     removeListener: (_map, type, handler) => listeners.get(type)?.delete(handler),
   } } }
   let props = {
-    shops: [shop], expanded: false, selectedId: undefined,
+    query: '', shops: [shop], expanded: false, selectedId: undefined,
     onSelect: (id) => { selections.push(id); props = { ...props, selectedId: id ?? undefined } },
     onSearchArea: (value) => searches.push({ ...value }),
   }
@@ -91,7 +97,7 @@ function mount() {
   }
   render()
   return {
-    render, searches, selections, centers, bounds: () => ({ ...bounds }), relayouts: () => relayouts,
+    render, searches, selections, centers, fitted, bounds: () => ({ ...bounds }), relayouts: () => relayouts,
     move(type, nextBounds = bounds, nextLevel = level) {
       bounds = { ...nextBounds }; level = nextLevel
       listeners.get(type)?.forEach((handler) => handler())
@@ -152,4 +158,26 @@ test('a selected shop is cleared by a small drag or zoom and searching sends the
     assert.equal(app.searches.length, 2)
     app.unmount()
   }
+})
+
+test('keyword results fit distant stores and clearing the keyword resumes nearby browsing', () => {
+  const app = mount()
+  const far = [{ id: 'busan', latitude: 35.16, longitude: 129.16 }]
+  app.render({ query: '태영 헤어', shops: far })
+  assert.deepEqual(app.centers, [[35.16, 129.16]])
+  assert.equal(app.searches.length, 1)
+  app.render({ query: '다른 이름' })
+  assert.equal(app.centers.length, 1, 'typing must not refit stale results')
+  app.move('dragend', shifted(0.0625))
+  assert.equal(searchButton(app.render()), undefined)
+  app.render({ query: '' })
+  assert.deepEqual(app.searches.at(-1), app.bounds())
+  app.render()
+  assert.equal(app.searches.length, 2)
+  app.render({ query: '헤어', shops: [...far, shop] })
+  assert.deepEqual(app.fitted, [[[35.16, 129.16], [shop.latitude, shop.longitude]]])
+  app.render({ query: '없는 가게', shops: [] })
+  assert.equal(app.fitted.length, 1)
+  assert.equal(app.centers.length, 1, 'empty results must not move the map')
+  app.unmount()
 })

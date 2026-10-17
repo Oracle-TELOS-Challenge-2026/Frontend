@@ -7,7 +7,6 @@ import { useKakaoMap } from '../../hooks/useKakaoMap'
 import { getAvailableSlots } from '../../model'
 import type { Shop } from '../../model'
 import { hasSearchAreaChanged, type SearchBounds } from '../../lib/shop-search'
-import type { Place } from '../../lib/kakao-map'
 import type { KakaoMap } from '../../types/kakao-map'
 
 function readBounds(map: KakaoMap): SearchBounds {
@@ -18,7 +17,7 @@ function readBounds(map: KakaoMap): SearchBounds {
 }
 
 interface ShopMapProps {
-  place: Place | null
+  query: string
   shops: Shop[]
   expanded: boolean
   selectedId?: string
@@ -26,10 +25,12 @@ interface ShopMapProps {
   onSearchArea: (bounds: SearchBounds) => void
 }
 
-export function ShopMap({ place, shops, expanded, selectedId, onSelect, onSearchArea }: ShopMapProps) {
+export function ShopMap({ query, shops, expanded, selectedId, onSelect, onSearchArea }: ShopMapProps) {
   const { containerRef, instance, status, retry } = useKakaoMap()
   const [areaChanged, setAreaChanged] = useState(false)
   const searchedArea = useRef<{ bounds: SearchBounds; level: number } | null>(null)
+  const fittedResults = useRef<Shop[] | null>(null)
+  const searching = Boolean(query.trim())
 
   const searchArea = useCallback(() => {
     if (!instance) return
@@ -61,16 +62,27 @@ export function ShopMap({ place, shops, expanded, selectedId, onSelect, onSearch
   }, [instance, onSelect, selectedId])
 
   useEffect(() => {
-    if (!instance) return
-    if (place) {
-      instance.map.relayout()
-      instance.map.setLevel(5)
-      instance.map.setCenter(new instance.maps.LatLng(place.latitude, place.longitude))
-    }
+    if (!instance || searching) return
     const bounds = readBounds(instance.map)
     searchedArea.current = { bounds, level: instance.map.getLevel() }
     onSearchArea(bounds)
-  }, [instance, onSearchArea, place])
+  }, [instance, onSearchArea, searching])
+
+  useEffect(() => {
+    if (!instance || fittedResults.current === shops) return
+    fittedResults.current = shops
+    if (!searching || !shops.length) return
+    const { map, maps } = instance
+    map.relayout()
+    if (shops.length === 1) {
+      map.setLevel(5)
+      map.setCenter(new maps.LatLng(shops[0].latitude, shops[0].longitude))
+    } else {
+      const bounds = new maps.LatLngBounds()
+      shops.forEach((shop) => bounds.extend(new maps.LatLng(shop.latitude, shop.longitude)))
+      map.setBounds(bounds, 48, 32, 48, 32)
+    }
+  }, [instance, shops, searching])
 
   useEffect(() => {
     const shop = shops.find((item) => item.id === selectedId)
@@ -93,8 +105,8 @@ export function ShopMap({ place, shops, expanded, selectedId, onSelect, onSearch
       return <ShopMapMarker key={shop.id} instance={instance} shop={shop} slot={slot} selected={shop.id === selectedId} onSelect={(id) => { setAreaChanged(false); onSelect(id) }} />
     })}
     {status === 'ready' && <>
-      <span className="map-caption">주변 가게 · 최대 반경 10km</span>
-      {areaChanged && !selectedId && <button className="map-search-area" onClick={searchArea}><Icon name="refresh" size={17} />이 지역 재검색</button>}
+      <span className="map-caption">{searching ? '등록 가게 검색 · 반경 10km' : '주변 가게 · 최대 반경 10km'}</span>
+      {areaChanged && !selectedId && !searching && <button className="map-search-area" onClick={searchArea}><Icon name="refresh" size={17} />이 지역 재검색</button>}
       {instance && <UserLocation instance={instance} onLocate={searchArea} />}
     </>}
   </div>

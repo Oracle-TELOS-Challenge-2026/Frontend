@@ -108,7 +108,7 @@ export function storeSearchPath(query: string, code: string, bounds: SearchBound
   const latitude = bounds ? (bounds.north + bounds.south) / 2 : DEFAULT_MAP_CENTER.latitude
   const longitude = bounds ? (bounds.east + bounds.west) / 2 : DEFAULT_MAP_CENTER.longitude
   const radius = bounds ? Math.ceil(Math.hypot((bounds.north - latitude) * 111320, (bounds.east - longitude) * 111320 * Math.cos(latitude * Math.PI / 180))) : 5000
-  const params = new URLSearchParams({ latitude: String(latitude), longitude: String(longitude), radiusMeters: String(Math.min(10000, Math.max(100, radius))), limit: '50' })
+  const params = new URLSearchParams({ latitude: String(latitude), longitude: String(longitude), radiusMeters: String(query.trim() ? 10000 : Math.min(10000, Math.max(100, radius))), limit: '50' })
   if (query.trim()) params.set('keyword', query.trim())
   if (code) params.set('category', category(code))
   return `/api/v1/search/stores?${params}`
