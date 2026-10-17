@@ -172,7 +172,7 @@ export function ChatPage({ chat, role, userId, ownerShop, onRefreshSession }: { 
   }
 
   return <div className="chat-page">
-    <header className="chat-heading"><Link to={back} aria-label="이전 화면" className="icon-button"><Icon name="arrow-left" /></Link>{role === 'customer' && conversation.store.imageUrl ? <img src={conversation.store.imageUrl} alt="" /> : <span className="chat-avatar"><Icon name={role === 'customer' ? 'store' : 'user'} /></span>}<div><h1>{title}</h1><p>{role === 'customer' ? '사장님과의 대화' : conversation.store.name}</p></div>{readOnly && <span className="badge">읽기 전용</span>}</header>
+    <header className="chat-heading"><Link to={back} aria-label="이전 화면" className="icon-button"><Icon name="arrow-left" /></Link>{role === 'customer' && conversation.store.imageUrl ? <img src={conversation.store.imageUrl} alt="" /> : <span className="chat-avatar"><Icon name={role === 'customer' ? 'store' : 'user'} /></span>}<div><h1>{role === 'customer' ? <Link to={back}>{title}</Link> : title}</h1><p>{role === 'customer' ? '사장님과의 대화' : conversation.store.name}</p></div>{readOnly && <span className="badge">읽기 전용</span>}</header>
     {error && <div className="chat-error" role="alert"><p>{error}</p><button type="button" className="account-text-button" onClick={() => { setAttempt((value) => value + 1); void refreshRooms() }}>다시 조회</button></div>}
     {chat.realtime.error && <p className="chat-status" role="status">{chat.realtime.error}</p>}
     <div className="chat-messages" aria-busy={!conversation.messagesLoaded}>
