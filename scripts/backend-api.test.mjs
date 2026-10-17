@@ -79,6 +79,17 @@ test('HTTP failures and a failure envelope at HTTP 200 remain failures', async (
   }
 })
 
+test('409 shows the server message and falls back when it is missing or blank', async (t) => {
+  for (const message of ['이미 같은 조건으로 알림을 신청했어요.', undefined, null, 123, '', '   ']) {
+    t.mock.method(globalThis, 'fetch', async () => Response.json({ ...failure(), error: { code: 'DUPLICATE_WAITLIST', message } }, { status: 409 }))
+    await assert.rejects(requestBackendApi('/api/v1/search/waitlists'), {
+      status: 409,
+      code: 'DUPLICATE_WAITLIST',
+      message: typeof message === 'string' && message.trim() ? message : '서버 오류가 발생했어요. 잠시 후 다시 시도해 주세요.',
+    })
+  }
+})
+
 test('malformed JSON and success envelopes cannot become valid data', async (t) => {
   for (const body of ['<html>error</html>', 'null', '{}', JSON.stringify({ resultType: 'SUCCESS', success: {}, error: null }), JSON.stringify(success(null)), JSON.stringify({ ...success(), error: { code: 'ERROR' } }), JSON.stringify({ ...success(), resultType: 'UNKNOWN' })]) {
     t.mock.method(globalThis, 'fetch', async () => new Response(body, { status: 200 }))

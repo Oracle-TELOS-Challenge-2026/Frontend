@@ -39,12 +39,13 @@ export async function requestBackendApi(path: string, { method = 'GET', body, he
         401: '로그인이 필요하거나 세션이 만료됐어요. 다시 로그인해 주세요.',
         403: '서버가 이 요청의 접근을 허용하지 않았어요.',
         404: '요청한 API 또는 매장을 찾을 수 없어요.',
-        409: '서버 데이터가 변경되었어요. 다시 조회해 주세요.',
+        409: '서버 오류가 발생했어요. 잠시 후 다시 시도해 주세요.',
         429: '요청이 너무 많아요. 잠시 후 다시 조회해 주세요.',
         501: '서버에서 아직 지원하지 않는 기능이에요.',
         503: '서버를 잠시 사용할 수 없어요. 잠시 후 다시 시도해 주세요.',
       }
       const message = isObject(responseBody) && isObject(responseBody.error) && typeof responseBody.error.message === 'string' ? responseBody.error.message : undefined
+      if (response.status === 409 && message?.trim()) messages[409] = message
       throw new BackendApiError(response.status, code, messages[response.status] ?? message ?? `요청을 처리하지 못했어요. (HTTP ${response.status})`)
     }
     if (!isObject(responseBody) || responseBody.resultType !== 'SUCCESS' || responseBody.error !== null || !isObject(responseBody.success) || !isObject(responseBody.success.data)) {
