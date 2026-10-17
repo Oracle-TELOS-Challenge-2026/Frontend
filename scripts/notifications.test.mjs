@@ -4,6 +4,7 @@ import { fetchNotifications, markNotificationRead, mergeNotifications, notificat
 
 const notification = (overrides = {}) => ({
   id: 'noti-1', type: 'VACANCY_MATCHED', title: '빈자리 알림', body: '예약할 수 있어요.',
+  target: { storeId: 'store-1' },
   action: { type: 'OPEN_SLOT', path: '/customer/shops/store-1?slotId=slot-1' },
   availability: 'AVAILABLE', readAt: null, createdAt: '2026-10-17T12:00:00+09:00', ...overrides,
 })
@@ -11,7 +12,7 @@ const success = (data) => Response.json({ resultType: 'SUCCESS', success: { data
 
 test('notification list uses cursor pagination and validates unread count and page boundaries', async (t) => {
   const responses = [
-    success({ items: [notification({ target: { instantBooking: false } })], unreadCount: 3, page: { hasNext: true, nextCursor: 'cursor-2' } }),
+    success({ items: [notification({ target: { storeId: 'store-1', instantBooking: false } })], unreadCount: 3, page: { hasNext: true, nextCursor: 'cursor-2' } }),
     success({ items: [], unreadCount: 3, page: { hasNext: false, nextCursor: null } }),
     success({ items: [], unreadCount: -1, page: { hasNext: false } }),
     success({ items: [], unreadCount: 1, page: { hasNext: true, nextCursor: 'loop' } }),
@@ -19,6 +20,7 @@ test('notification list uses cursor pagination and validates unread count and pa
   const fetch = t.mock.method(globalThis, 'fetch', async () => responses.shift())
   const first = await fetchNotifications()
   assert.equal(first.items[0].id, 'noti-1')
+  assert.equal(first.items[0].storeId, 'store-1')
   assert.equal(first.items[0].instantBooking, false)
   assert.equal(first.nextCursor, 'cursor-2')
   assert.equal(first.unreadCount, 3)
@@ -36,6 +38,7 @@ test('marking notifications read sends CSRF and read=true and rejects unconfirme
   const fetch = t.mock.method(globalThis, 'fetch', async () => responses.shift())
   const read = await markNotificationRead('noti/1')
   assert.ok(read.readAt)
+  assert.equal(read.storeId, 'store-1')
   const [url, options] = fetch.mock.calls[1].arguments
   assert.equal(new URL(url, 'https://frontend-oracle.vercel.app').pathname, '/api/v1/notifications/noti%2F1/read')
   assert.equal(options.method, 'PATCH')
@@ -50,13 +53,24 @@ test('notification destinations remain in the app and invalid response data is r
   for (const value of [null, notification({ id: '' }), notification({ type: null }), notification({ createdAt: 'bad' }), notification({ readAt: 'bad' }), notification({ availability: 'OTHER' })]) assert.throws(() => parseNotification(value))
 })
 
+test('notification store IDs are validated and stay opaque for chat navigation', () => {
+  const storeId = 'store/가게 ?#%'
+  const item = parseNotification(notification({ target: { storeId }, action: { type: 'OPEN_SLOT', path: '/customer/waitlist' } }))
+  assert.equal(item.storeId, storeId)
+  assert.equal(item.path, '/customer/waitlist')
+  for (const target of [undefined, null, {}, { storeId: null }]) assert.equal(parseNotification(notification({ target })).storeId, null)
+  for (const storeId of ['', ' ', '.', '..', 'bad\nstore', 'a'.repeat(65), 1, false, {}, []]) {
+    assert.throws(() => parseNotification(notification({ target: { storeId } })))
+  }
+})
+
 test('vacancy notifications preserve the published policy and validate optional boolean targets', () => {
   for (const target of [undefined, null, {}, { instantBooking: null }, { instantBooking: true }]) {
     assert.equal(parseNotification(notification({ target })).instantBooking, true)
   }
   const pending = parseNotification(notification({ target: { instantBooking: false } }))
   assert.equal(pending.instantBooking, false)
-  assert.equal(notificationActionLabel(pending), '예약 신청')
+  assert.equal(notificationActionLabel(pending), '가게와 채팅하기')
   assert.equal(notificationActionLabel({ ...pending, availability: 'UNAVAILABLE' }), null)
   for (const instantBooking of ['false', 'true', 0, 1, {}, []]) {
     assert.throws(() => parseNotification(notification({ target: { instantBooking } })), /확정 방식/)
@@ -79,7 +93,7 @@ test('chat and reservation notifications keep their destinations and remain acti
     assert.equal(notificationActionLabel(item), label)
     assert.equal(notificationActionLabel({ ...item, availability: 'UNAVAILABLE' }), label)
   }
-  assert.equal(notificationActionLabel(parseNotification(notification())), '빈자리 확인하기')
+  assert.equal(notificationActionLabel(parseNotification(notification())), '가게와 채팅하기')
   assert.equal(notificationActionLabel(parseNotification(notification({ availability: 'UNAVAILABLE' }))), null)
   assert.equal(notificationActionLabel(parseNotification(notification({ type: 'NEW_TYPE', availability: 'NOT_APPLICABLE' }))), '내용 확인하기')
 })
@@ -95,7 +109,7 @@ test('duplicate and replayed notifications preserve read state and chronological
 })
 
 test('SSE handles fragmented UTF-8, CRLF, heartbeats, multiline JSON, and session expiry', async (t) => {
-  const content = ': heartbeat\r\n\r\nretry: 3000\r\n\r\nid: evt-1\r\nevent: notification.created\r\ndata: {"notification":\r\ndata: ' + JSON.stringify(notification({ target: { instantBooking: false } })) + '}\r\n\r\nid: evt-2\nevent: notification.read\ndata: {"notificationId":"noti-1","readAt":"2026-10-17T12:01:00+09:00"}\n\nevent: session.expired\ndata: {"reason":"SESSION_EXPIRED"}\n\n'
+  const content = ': heartbeat\r\n\r\nretry: 3000\r\n\r\nid: evt-1\r\nevent: notification.created\r\ndata: {"notification":\r\ndata: ' + JSON.stringify(notification({ target: { storeId: 'store-1', instantBooking: false } })) + '}\r\n\r\nid: evt-2\nevent: notification.read\ndata: {"notificationId":"noti-1","readAt":"2026-10-17T12:01:00+09:00"}\n\nevent: session.expired\ndata: {"reason":"SESSION_EXPIRED"}\n\n'
   const bytes = new TextEncoder().encode(content)
   const body = new ReadableStream({ start(controller) { for (let index = 0; index < bytes.length; index += 7) controller.enqueue(bytes.slice(index, index + 7)); controller.close() } })
   const fetch = t.mock.method(globalThis, 'fetch', async () => new Response(body, { headers: { 'Content-Type': 'text/event-stream' } }))
@@ -104,6 +118,7 @@ test('SSE handles fragmented UTF-8, CRLF, heartbeats, multiline JSON, and sessio
   await readNotificationStream({ signal: new AbortController().signal, afterEventId: 'evt/old', onOpen: () => { opened = true }, onEvent: (event) => { assert.equal(opened, true); events.push(event) } })
   assert.deepEqual(events.map((event) => event.type), ['notification.created', 'notification.read', 'session.expired'])
   assert.equal(events[0].notification.title, '빈자리 알림')
+  assert.equal(events[0].notification.storeId, 'store-1')
   assert.equal(events[0].notification.instantBooking, false)
   assert.equal(events[1].notificationId, 'noti-1')
   const [url, options] = fetch.mock.calls[0].arguments

@@ -6,6 +6,7 @@ export interface NotificationItem {
   title: string
   body: string
   path: string
+  storeId: string | null
   availability: 'AVAILABLE' | 'UNAVAILABLE' | 'UNKNOWN' | 'NOT_APPLICABLE'
   instantBooking: boolean
   readAt: string | null
@@ -47,18 +48,21 @@ export function parseNotification(value: unknown): NotificationItem {
   const id = text(item.id)
   apiId(id)
   if (!['AVAILABLE', 'UNAVAILABLE', 'UNKNOWN', 'NOT_APPLICABLE'].includes(text(item.availability))) throw new Error('알림 상태가 올바르지 않아요.')
-  const instantBooking = item.target == null ? true : object(item.target).instantBooking ?? true
+  const target = item.target == null ? null : object(item.target)
+  const instantBooking = target?.instantBooking ?? true
   if (typeof instantBooking !== 'boolean') throw new Error('알림의 확정 방식을 확인하지 못했어요.')
+  const storeId = target?.storeId == null ? null : text(target.storeId)
+  if (storeId !== null) apiId(storeId)
   return {
     id, type: text(item.type), title: text(item.title), body: text(item.body), path: notificationPath(object(item.action).path),
     availability: item.availability as NotificationItem['availability'],
-    instantBooking,
+    instantBooking, storeId,
     readAt: item.readAt === null ? null : timestamp(item.readAt), createdAt: timestamp(item.createdAt),
   }
 }
 
 export function notificationActionLabel(item: NotificationItem) {
-  if (item.type === 'VACANCY_MATCHED') return item.availability === 'UNAVAILABLE' ? null : item.instantBooking ? '빈자리 확인하기' : '예약 신청'
+  if (item.type === 'VACANCY_MATCHED') return item.availability === 'UNAVAILABLE' ? null : '가게와 채팅하기'
   if (item.type === 'CHAT_MESSAGE') return '채팅 확인하기'
   if (item.type.startsWith('RESERVATION_')) return '예약 확인하기'
   return '내용 확인하기'
